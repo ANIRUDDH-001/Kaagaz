@@ -327,3 +327,16 @@ def test_web_files_are_always_revalidated(ctx):
 def test_input_reports_its_stage(ctx):
     p = ctx.app.state.inputs.create(ctx.hid, "parent", "text", text="x")
     assert ctx.c.get(f"/api/inputs/{p.id}").json()["stage"] == "sent"
+
+
+def test_several_frontend_addresses_may_call_the_api(monkeypatch, tmp_path):
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://kaagaz.onrender.com, https://kaagaz-bx24.onrender.com")
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    app = create_app(store=mock_store(), temporal=FakeTemporal(), push=FakePush(), start_workers=False)
+    with TestClient(app) as c:
+        for origin in ("https://kaagaz.onrender.com", "https://kaagaz-bx24.onrender.com"):
+            r = c.get("/api/health", headers={"Origin": origin})
+            assert r.headers.get("access-control-allow-origin") == origin
+        assert "access-control-allow-origin" not in c.get("/api/health", headers={"Origin": "https://evil.example"}).headers
+    get_settings.cache_clear()

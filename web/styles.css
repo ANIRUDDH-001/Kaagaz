@@ -1,4 +1,4 @@
-/* Kaagaz paper: ink on paper, a rubber-stamp red for anything that needs care, green for done.
+/* Kaagaz paper: always the light paper theme (the dark variant was cut so every device shows the same design). Ink on paper, a rubber-stamp red for anything that needs care, green for done.
    One bold thing per screen: the round speak seal on Home, the stamped slip when a card is open. */
 :root{--paper:#f7f2e8;--paper-2:#fffaf0;--ink:#1f2a44;--ink-2:#4a5068;--line:#d9c9a8;--stamp:#b3261e;
 --stamp-bg:#fbe3df;--amber:#9a5b00;--amber-bg:#fff1d6;--green:#1d6b4f;--green-bg:#e3f1ea;--radius:18px;
@@ -7,11 +7,6 @@
 :root[lang="hi"]{--font:var(--font-hi);--display:var(--display-hi)}:root[lang="en"]{--font:var(--font-en);--display:var(--display-en)}
 :root{--font:var(--font-en);--display:var(--display-en);--grain:rgba(31,42,68,.045);--lift:0 1px 0 rgba(31,42,68,.06),0 8px 24px -14px rgba(31,42,68,.35);color-scheme:light}
 
-@media (prefers-color-scheme: dark){
-  :root{--paper:#1a2338;--paper-2:#232e48;--ink:#f3ecdf;--ink-2:#c3bba9;--line:#3d4a68;--stamp:#ff8a7e;
-  --stamp-bg:#3d2329;--amber:#f2b35a;--amber-bg:#3a2f1c;--green:#7fd1ad;--green-bg:#1d3a31;--grain:rgba(243,236,223,.035);
-  --lift:0 1px 0 rgba(0,0,0,.2),0 10px 28px -16px rgba(0,0,0,.7);color-scheme:dark}
-}
 
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}

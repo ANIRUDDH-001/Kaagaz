@@ -67,7 +67,7 @@ def create_app(*, store=None, temporal=None, push=None, gemma=None, stt=None, tt
             await asyncio.gather(runner, return_exceptions=True)
 
     app = FastAPI(title="Kaagaz", lifespan=lifespan)
-    app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_origin], allow_methods=["*"],
+    app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in settings.frontend_origin.split(",") if o.strip()], allow_methods=["*"],
                        allow_headers=["Authorization", "Content-Type"])
 
     @app.get("/api/health")

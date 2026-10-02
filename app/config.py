@@ -37,7 +37,7 @@ class Settings:
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:admin@example.com"
-    frontend_origin: str = "http://localhost:8000"
+    frontend_origin: str = "http://localhost:8000"   # comma-separated if the site has more than one address
     upload_dir: str = ""
 
 
