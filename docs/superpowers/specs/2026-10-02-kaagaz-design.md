@@ -429,3 +429,21 @@ kaagaz/
 - **Sat 3 Oct**: extraction, voice, confirmation, workflows, inbox, push, UI.
 - **Sun 4 Oct**: private mode, eval rerun, polish, README, DEV post draft.
 - **Mon 5 Oct, by 10:00 IST**: final checks and submit (deadline 12:29 IST).
+
+## 16. Reliability and integrity rules (engineering review, 2 Oct)
+
+- **Confirm is bound to the card the server generated.** The server keeps every card. A confirm must
+  match it action for action (same tool, same item). Only the fields the card shows as editable can
+  change. Evidence, category and source always come from the stored card.
+- **Confirm is idempotent.** A repeated confirm returns the same result. Obligation ids are derived
+  from the input id, so a retry after a crash never creates a second record or a second workflow.
+- **Failed is not sent.** A reminder keeps retrying for up to 24 h (10 min in demo). If it still
+  fails, it is recorded as failed, never as sent, and the later reminders and the escalation still
+  run.
+- **No stranded work.** Each processing workflow closes itself after 30 min if the process holding
+  the upload has died. Upload files older than that are deleted from disk at startup, on every new
+  upload and every 5 min.
+- **Quotas are protected.** Demo limits per hour: 15 Gemma calls per household and 200 overall;
+  40 server-voice calls per household and 200 overall. The browser voice is the fallback.
+- **The eval reports exact accuracy and silent errors separately.** A highlighted wrong value is
+  caught, never counted as correct.
