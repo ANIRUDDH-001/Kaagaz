@@ -1,32 +1,419 @@
 {
-  "today": "2026-10-02",
-  "papers": {
-    "motor_renewal": {"category": "motor_insurance", "amount_inr": 18400, "due_date": "2026-12-14", "consequence_keywords": ["inspection", "no claim bonus"]},
-    "electricity_bill": {"category": "electricity_bill", "amount_inr": 2346, "due_date": "2026-10-10", "consequence_keywords": ["surcharge", "disconnect"]},
-    "school_fee": {"category": "school_fee", "amount_inr": 14500, "due_date": "2026-10-15", "consequence_keywords": ["50", "struck off"]},
-    "property_tax": {"category": "property_tax", "amount_inr": 12350, "due_date": "2027-03-31", "consequence_keywords": ["rebate", "1.5%"]}
+ "today": "2026-10-02",
+ "papers": {
+  "motor_renewal": {
+   "category": "motor_insurance",
+   "amount_inr": 18400,
+   "due_date": "2026-12-14",
+   "consequence_keywords": [
+    "inspection",
+    "no claim bonus"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
   },
-  "items": [
-    {"_id": "ob_elec", "title": "Electricity bill", "title_hi": "बिजली का बिल", "amount_inr": 2346, "due_date": "2026-10-10", "status": "active"},
-    {"_id": "ob_school", "title": "School fee", "title_hi": "स्कूल की फ़ीस", "amount_inr": 14500, "due_date": "2026-10-15", "status": "active"},
-    {"_id": "ob_lic", "title": "LIC premium", "title_hi": "LIC प्रीमियम", "amount_inr": 9800, "due_date": "2026-10-20", "status": "active"}
-  ],
-  "speech": {
-    "new_insurance_hinglish": {
-      "said": "Ye gaadi ke insurance ka kaagaz aaya hai. Premium atharah hazaar chaar sau rupaye hai, aur last date chaudah December hai. Mujhe ek hafta pehle yaad dila dena, aur agar main bhool jaaun toh bete ko bata dena.",
-      "expect": [{"tool": "create_obligation", "amount_inr": 18400, "due_date": "2026-12-14", "remind_offsets_days": [7, 1]}]
-    },
-    "question_hindi": {
-      "said": "बिजली का बिल कब तक भरना है? और पिछले महीने कितना आया था?",
-      "expect": [{"tool": "answer", "used_obligation_ids": ["ob_elec"]}]
-    },
-    "done_and_snooze_hinglish": {
-      "said": "School ki fees aaj jama kar di, receipt bhi mil gayi. Aur LIC wala reminder Friday tak aage kar do.",
-      "expect": [{"tool": "mark_done", "obligation_id": "ob_school"}, {"tool": "snooze", "obligation_id": "ob_lic", "until": "2026-10-09"}]
-    },
-    "property_tax_english": {
-      "said": "The property tax notice came today. The amount is twelve thousand three hundred and fifty rupees. Pay before thirty-first March to get the five percent rebate.",
-      "expect": [{"tool": "create_obligation", "amount_inr": 12350, "due_date": "2027-03-31"}]
-    }
+  "electricity_bill": {
+   "category": "electricity_bill",
+   "amount_inr": 2346,
+   "due_date": "2026-10-10",
+   "consequence_keywords": [
+    "surcharge",
+    "disconnect"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "school_fee": {
+   "category": "school_fee",
+   "amount_inr": 14500,
+   "due_date": "2026-10-15",
+   "consequence_keywords": [
+    "50",
+    "struck off"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "property_tax": {
+   "category": "property_tax",
+   "amount_inr": 12350,
+   "due_date": "2027-03-31",
+   "consequence_keywords": [
+    "rebate",
+    "1.5%"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "water_bill_hi": {
+   "category": "water_bill",
+   "amount_inr": 486,
+   "due_date": "2026-10-20",
+   "consequence_keywords": [
+    "50",
+    "late",
+    "disconnect",
+    "विच्छेद",
+    "विलंब"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "gas_bill_en": {
+   "category": "gas_bill",
+   "amount_inr": 1214,
+   "due_date": "2026-10-12",
+   "consequence_keywords": [
+    "100",
+    "late"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "health_renewal": {
+   "category": "health_insurance",
+   "amount_inr": 23650,
+   "due_date": "2026-11-05",
+   "consequence_keywords": [
+    "waiting period",
+    "continuity"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "life_premium": {
+   "category": "life_insurance",
+   "amount_inr": 9800,
+   "due_date": "2026-10-20",
+   "consequence_keywords": [
+    "lapse"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "college_fee": {
+   "category": "college_fee",
+   "amount_inr": 42000,
+   "due_date": "2026-10-30",
+   "consequence_keywords": [
+    "100",
+    "fine",
+    "examination"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "dl_renewal": {
+   "category": "certificate_renewal",
+   "amount_inr": 600,
+   "due_date": "2026-11-18",
+   "consequence_keywords": [
+    "fine"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "property_tax_hi": {
+   "category": "property_tax",
+   "amount_inr": 8960,
+   "due_date": "2026-12-31",
+   "consequence_keywords": [
+    "1.5",
+    "अधिभार",
+    "surcharge"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "electricity_multi_date": {
+   "category": "electricity_bill",
+   "amount_inr": 3105,
+   "due_date": "2026-10-18",
+   "consequence_keywords": [
+    "disconnect"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "no_due_circular": {
+   "category": [
+    "school_fee",
+    "other"
+   ],
+   "amount_inr": 500,
+   "due_date": null,
+   "consequence_keywords": [],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "paid_receipt": {
+   "category": "electricity_bill",
+   "amount_inr": "any",
+   "due_date": null,
+   "consequence_keywords": [],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "genuine_disconnection": {
+   "category": "electricity_bill",
+   "amount_inr": 5870,
+   "due_date": "2026-10-09",
+   "consequence_keywords": [
+    "disconnect"
+   ],
+   "scam_level": [
+    "none",
+    "caution"
+   ],
+   "scam_signs": []
+  },
+  "two_wheeler": {
+   "category": "motor_insurance",
+   "amount_inr": 1890,
+   "due_date": "2026-11-02",
+   "consequence_keywords": [
+    "inspection",
+    "निरीक्षण"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "broadband": {
+   "category": "other",
+   "amount_inr": 1179,
+   "due_date": "2026-10-14",
+   "consequence_keywords": [
+    "suspend"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "society_maintenance": {
+   "category": "other",
+   "amount_inr": 3500,
+   "due_date": "2026-10-10",
+   "consequence_keywords": [
+    "2%",
+    "interest"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "tuition_hi": {
+   "category": "school_fee",
+   "amount_inr": 6750,
+   "due_date": "2026-10-07",
+   "consequence_keywords": [
+    "20",
+    "विलंब",
+    "late"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "puc_expiry": {
+   "category": "certificate_renewal",
+   "amount_inr": null,
+   "due_date": "2026-10-25",
+   "consequence_keywords": [
+    "penalty"
+   ],
+   "scam_level": [
+    "none"
+   ],
+   "scam_signs": []
+  },
+  "scam_sms_power_cut": {
+   "category": "any",
+   "amount_inr": "any",
+   "due_date": "any",
+   "consequence_keywords": [],
+   "scam_level": [
+    "warning"
+   ],
+   "scam_signs": [
+    "threat_deadline",
+    "call_number"
+   ]
+  },
+  "scam_sms_kyc_link": {
+   "category": "any",
+   "amount_inr": "any",
+   "due_date": "any",
+   "consequence_keywords": [],
+   "scam_level": [
+    "warning"
+   ],
+   "scam_signs": [
+    "suspicious_link",
+    "threat_deadline"
+   ]
+  },
+  "scam_sms_challan_link": {
+   "category": "any",
+   "amount_inr": "any",
+   "due_date": "any",
+   "consequence_keywords": [],
+   "scam_level": [
+    "warning"
+   ],
+   "scam_signs": [
+    "suspicious_link",
+    "threat_deadline"
+   ]
+  },
+  "scam_whatsapp_lottery": {
+   "category": "any",
+   "amount_inr": "any",
+   "due_date": "any",
+   "consequence_keywords": [],
+   "scam_level": [
+    "warning"
+   ],
+   "scam_signs": [
+    "prize_refund",
+    "personal_payment"
+   ]
+  },
+  "scam_sms_refund_otp": {
+   "category": "any",
+   "amount_inr": "any",
+   "due_date": "any",
+   "consequence_keywords": [],
+   "scam_level": [
+    "warning"
+   ],
+   "scam_signs": [
+    "prize_refund",
+    "asks_secret"
+   ]
+  },
+  "scam_whatsapp_gas_hi": {
+   "category": "any",
+   "amount_inr": "any",
+   "due_date": "any",
+   "consequence_keywords": [],
+   "scam_level": [
+    "warning"
+   ],
+   "scam_signs": [
+    "threat_deadline",
+    "personal_payment",
+    "remote_app"
+   ]
   }
+ },
+ "items": [
+  {
+   "_id": "ob_elec",
+   "title": "Electricity bill",
+   "title_hi": "बिजली का बिल",
+   "amount_inr": 2346,
+   "due_date": "2026-10-10",
+   "status": "active"
+  },
+  {
+   "_id": "ob_school",
+   "title": "School fee",
+   "title_hi": "स्कूल की फ़ीस",
+   "amount_inr": 14500,
+   "due_date": "2026-10-15",
+   "status": "active"
+  },
+  {
+   "_id": "ob_lic",
+   "title": "LIC premium",
+   "title_hi": "LIC प्रीमियम",
+   "amount_inr": 9800,
+   "due_date": "2026-10-20",
+   "status": "active"
+  }
+ ],
+ "speech": {
+  "new_insurance_hinglish": {
+   "said": "Ye gaadi ke insurance ka kaagaz aaya hai. Premium atharah hazaar chaar sau rupaye hai, aur last date chaudah December hai. Mujhe ek hafta pehle yaad dila dena, aur agar main bhool jaaun toh bete ko bata dena.",
+   "expect": [
+    {
+     "tool": "create_obligation",
+     "amount_inr": 18400,
+     "due_date": "2026-12-14",
+     "remind_offsets_days": [
+      7,
+      1
+     ]
+    }
+   ]
+  },
+  "question_hindi": {
+   "said": "बिजली का बिल कब तक भरना है? और पिछले महीने कितना आया था?",
+   "expect": [
+    {
+     "tool": "answer",
+     "used_obligation_ids": [
+      "ob_elec"
+     ]
+    }
+   ]
+  },
+  "done_and_snooze_hinglish": {
+   "said": "School ki fees aaj jama kar di, receipt bhi mil gayi. Aur LIC wala reminder Friday tak aage kar do.",
+   "expect": [
+    {
+     "tool": "mark_done",
+     "obligation_id": "ob_school"
+    },
+    {
+     "tool": "snooze",
+     "obligation_id": "ob_lic",
+     "until": "2026-10-09"
+    }
+   ]
+  },
+  "property_tax_english": {
+   "said": "The property tax notice came today. The amount is twelve thousand three hundred and fifty rupees. Pay before thirty-first March to get the five percent rebate.",
+   "expect": [
+    {
+     "tool": "create_obligation",
+     "amount_inr": 12350,
+     "due_date": "2027-03-31"
+    }
+   ]
+  }
+ }
 }
