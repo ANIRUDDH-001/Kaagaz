@@ -126,9 +126,16 @@ def test_readback_for_update():
                       "due_date": None}]) == "LIC प्रीमियम — नई रकम ₹9,900। सही है?"
 
 
-def test_plan_schema_requires_every_field():
-    # Ollama decodes against the schema: an optional field is one a small model may skip. E4B left out
-    # amount_inr and due_date for a spoken new item until every field was required (nullable).
-    from ai.prompts import PLAN_SCHEMA
-    item = PLAN_SCHEMA["properties"]["actions"]["items"]
-    assert set(item["required"]) == set(item["properties"])
+def test_plan_schema_has_one_branch_per_tool_requiring_its_own_fields():
+    # Ollama decodes against the schema. With optional fields E4B skipped amount_inr and due_date for a spoken
+    # new item; with every field of every tool required it filled 15 nulls per action and stopped after the
+    # first ("fees done, and snooze LIC" lost the snooze). One branch per tool, each requiring only its fields.
+    from ai.prompts import PLAN_SCHEMA, TOOLS
+    branches = {b["properties"]["tool"]["enum"][0]: b for b in PLAN_SCHEMA["properties"]["actions"]["items"]["anyOf"]}
+    assert set(branches) == set(TOOLS)
+    for b in branches.values():
+        assert set(b["required"]) == set(b["properties"])
+        assert b["additionalProperties"] is False
+    assert {"amount_inr", "due_date", "title"} <= set(branches["create_obligation"]["required"])
+    assert set(branches["mark_done"]["required"]) == {"tool", "obligation_id"}
+    assert set(branches["snooze"]["required"]) == {"tool", "obligation_id", "until"}

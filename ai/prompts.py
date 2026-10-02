@@ -28,36 +28,31 @@ PAPER_SCHEMA = {
                  "evidence_amount", "evidence_due_date", "evidence_consequence", "summary_hi"],
 }
 
+_PLAN_FIELDS = {
+    "obligation_id": _S, "title": _S, "title_hi": _S, "category": _S, "amount_inr": _N, "due_date": _S,
+    "action": _S, "consequence": _S, "evidence": _S, "remind_before_days": {"type": ["integer", "null"]},
+    "escalate": {"type": ["boolean", "null"]}, "until": _S, "text_hi": _S, "question_hi": _S,
+}
+_TOOL_FIELDS = {
+    "create_obligation": ["title", "title_hi", "category", "amount_inr", "due_date", "action", "consequence",
+                          "evidence", "remind_before_days", "escalate"],
+    "update_obligation": ["obligation_id", "amount_inr", "due_date"],
+    "mark_done": ["obligation_id"],
+    "snooze": ["obligation_id", "until"],
+    "answer": ["obligation_id", "text_hi"],
+    "clarify": ["question_hi"],
+}
+
+
+def _branch(tool: str) -> dict:
+    # Every field a tool declares is required (nullable): Ollama lets a small model skip optional ones.
+    props = {"tool": {"type": "string", "enum": [tool]}, **{f: _PLAN_FIELDS[f] for f in _TOOL_FIELDS[tool]}}
+    return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
+
+
 PLAN_SCHEMA = {
     "type": "object",
-    "properties": {
-        "actions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "tool": {"type": "string", "enum": TOOLS},
-                    "obligation_id": _S,
-                    "title": _S,
-                    "title_hi": _S,
-                    "category": _S,
-                    "amount_inr": _N,
-                    "due_date": _S,
-                    "action": _S,
-                    "consequence": _S,
-                    "evidence": _S,
-                    "remind_before_days": {"type": ["integer", "null"]},
-                    "escalate": {"type": ["boolean", "null"]},
-                    "until": _S,
-                    "text_hi": _S,
-                    "question_hi": _S,
-                },
-                "required": ["tool", "obligation_id", "title", "title_hi", "category", "amount_inr", "due_date",
-                             "action", "consequence", "evidence", "remind_before_days", "escalate", "until",
-                             "text_hi", "question_hi"],   # all: Ollama lets a model skip optional fields
-            },
-        }
-    },
+    "properties": {"actions": {"type": "array", "items": {"anyOf": [_branch(t) for t in TOOLS]}}},
     "required": ["actions"],
 }
 

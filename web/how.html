@@ -54,13 +54,13 @@ Temporal Cloud: timers, retries, signals ◄── GitHub Actions worker, 4× an
     </table></div>
 
     <h2>Measured, not assumed</h2>
+    <p>From <code>eval/run_eval.py</code>: four phone photos of specimen papers (20 fields) and four spoken instructions, run on 2 Oct 2026.</p>
     <div class="wrap"><table>
-      <tr><th>Model</th><th>Phone-photo fields</th><th>Spoken instructions</th><th>Time</th></tr>
-      <tr><td>Gemma 4 26B, full thinking</td><td>20/20</td><td>11/11</td><td>18–36 s</td></tr>
-      <tr><td>Gemma 4 26B, minimal thinking (used)</td><td>19/20 — computed a discount instead of copying the total</td><td>11/11</td><td>4–15 s</td></tr>
-      <tr><td>Gemma 4 E4B on a laptop CPU</td><td>18/20</td><td>9/11</td><td>7–27 s</td></tr>
-      <tr><td>Gemma 4 E2B on a laptop CPU</td><td>15/20 — invented a consequence</td><td>weak</td><td>13–15 s</td></tr>
+      <tr><th>Model</th><th>Photo fields right</th><th>Wrong and not highlighted</th><th>Spoken instructions fully right</th><th>Time per item</th></tr>
+      <tr><td>Gemma 4 26B, minimal thinking (public demo)</td><td>20/20</td><td>0</td><td>3/4 — added a question for the half it couldn't answer</td><td>4–11 s</td></tr>
+      <tr><td>Gemma 4 E4B on a laptop CPU (private)</td><td>18/20</td><td>1 — copied the late-payment amount on the electricity bill</td><td>3/4 — heard "atharah hazaar" as 14,400</td><td>4–18 s</td></tr>
     </table></div>
+    <p>Earlier model choice (spike, 2 Oct): 26B with full thinking 20/20 photo fields but 18–36 s; E2B on a laptop 15/20 and invented a consequence — too weak to ship.</p>
     <p>That's why every amount and date shows the words it came from, and why nothing is saved without a confirmation.</p>
     <p><a href="./">← Back to Kaagaz</a></p>
   </main>
