@@ -6,7 +6,7 @@
   <title>Kaagaz</title>
   <meta name="description" content="Show Kaagaz a bill, notice or message. It explains it, checks it for scams, reminds before the date, and tells the son if something slips.">
   <meta name="theme-color" content="#f7f2e8">
-  <meta name="color-scheme" content="light">
+  <script>try { if (localStorage.getItem("kaagaz.theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) { /* private mode */ }</script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,6 +37,8 @@
       <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.5-7.5-10A4.3 4.3 0 0 1 12 7.5 4.3 4.3 0 0 1 19.5 10c0 5.5-7.5 10-7.5 10z"/></symbol>
       <symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 3.5s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></symbol>
       <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21a6 6 0 0 0 6-6c0-4-3-6-3.5-10-2.5 2-3 4.5-3 6.5C10 10 9.2 9 9 8c-2 2-3 4.5-3 7a6 6 0 0 0 6 6z"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
       <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
     </defs>
   </svg>
@@ -44,9 +46,14 @@
   <header class="top">
     <div class="top-row">
       <a class="brand" href="./" aria-label="Kaagaz"><span class="brand-en">Kaagaz</span><span class="brand-hi" lang="hi">काग़ज़</span></a>
+      <div class="top-tools">
+      <button type="button" id="theme" class="theme" aria-pressed="false" aria-label="Dark mode" data-t-aria="theme_dark">
+        <svg class="ic moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic sun" aria-hidden="true"><use href="#i-sun"/></svg>
+      </button>
       <div id="lang" class="pill" role="group" aria-label="Language" data-t-aria="lang_label">
         <button type="button" data-lang="en" lang="en" aria-label="English" data-t-aria="lang_en">EN</button>
         <button type="button" data-lang="hi" lang="hi" aria-label="Hindi" data-t-aria="lang_hi">हिं</button>
+      </div>
       </div>
     </div>
     <div id="roles" class="seg" role="group" aria-label="Who is using this?" data-t-aria="role_label">

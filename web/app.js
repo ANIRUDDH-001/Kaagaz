@@ -69,6 +69,15 @@ function applyLang() {
   if (state.card) { state.card.actions = editedActions(); renderCard(); }
 }
 
+function setTheme(theme) {
+  const dark = theme === "dark";
+  if (dark) document.documentElement.dataset.theme = "dark";
+  else delete document.documentElement.dataset.theme;
+  saved.set("kaagaz.theme", dark ? "dark" : "light");
+  $("#theme").setAttribute("aria-pressed", String(dark));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#1a2338" : "#f7f2e8");
+}
+
 function switchLang(l) {
   if (l === getLang()) return;
   setLang(l);
@@ -466,6 +475,7 @@ async function enablePush() {
 // ---------- wiring ----------
 function wire() {
   $$("#lang [data-lang]").forEach((b) => b.addEventListener("click", () => switchLang(b.dataset.lang)));
+  $("#theme").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
   $$("#roles [data-role]").forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
   $("#intro-close").addEventListener("click", () => { $("#intro").hidden = true; saved.set("kaagaz.intro", "1"); });
   wireSpeak();
@@ -539,6 +549,7 @@ async function init() {
   setLang(getLang());
   wire();
   setRole(state.role);
+  setTheme(saved.get("kaagaz.theme") === "dark" ? "dark" : "light");
   $("#intro").hidden = saved.get("kaagaz.intro") === "1";
   applyLang();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

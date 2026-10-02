@@ -58,7 +58,7 @@ const en = {
   waking: "Waking up the assistant", waking_sub: "It runs on a free server — about a minute after a quiet spell.",
   waking_failed: "The server didn't wake up. Please open the page again in a little while.",
   how: "How it works", close: "Close", unread: (n) => `${n} unread`, steps_label: "Progress",
-  scam_signs: "Warning signs on it", lang_en: "English", lang_hi: "Hindi",
+  scam_signs: "Warning signs on it", lang_en: "English", lang_hi: "Hindi", theme_dark: "Dark mode",
   label_d30: "30 days before", label_d7: "7 days before", label_d1: "1 day before", label_now: "now",
   label_snooze: "your chosen date", label_escalation: "tell the son",
 };
@@ -119,7 +119,7 @@ const hi = {
   waking: "सहायक जाग रहा है", waking_sub: "यह मुफ़्त सर्वर पर चलता है — कुछ देर बाद खोलने पर लगभग एक मिनट।",
   waking_failed: "सर्वर नहीं जागा — थोड़ी देर बाद पेज फिर खोलिए।",
   how: "यह कैसे काम करता है", close: "बंद करें", unread: (n) => `${n} नई`, steps_label: "कहाँ तक पहुँचा",
-  scam_signs: "इसमें धोखे के निशान", lang_en: "अंग्रेज़ी", lang_hi: "हिंदी",
+  scam_signs: "इसमें धोखे के निशान", lang_en: "अंग्रेज़ी", lang_hi: "हिंदी", theme_dark: "डार्क मोड",
   label_d30: "30 दिन पहले वाला", label_d7: "7 दिन पहले वाला", label_d1: "1 दिन पहले वाला", label_now: "अभी",
   label_snooze: "आपकी बताई तारीख़ वाला", label_escalation: "बेटे को सूचना",
 };
