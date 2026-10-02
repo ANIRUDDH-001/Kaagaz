@@ -58,10 +58,14 @@ def score_scam(truth: dict, card: dict) -> dict:
 
 def score_speech(expect: list[dict], card: dict) -> dict[str, bool]:
     got = card["actions"]
-    result = {"tools": sorted(a["tool"] for a in got) == sorted(e["tool"] for e in expect)}
+
+    def tools(actions):   # a two-part question may be answered in two parts
+        names = [a["tool"] for a in actions]
+        return sorted([n for n in names if n != "answer"] + ["answer"] * ("answer" in names))
+    result = {"tools": tools(got) == tools(expect)}
     for e in expect:
-        match = next((a for a in got if a["tool"] == e["tool"] and
-                      (not e.get("obligation_id") or a.get("obligation_id") == e["obligation_id"])),
+        key = "used_obligation_ids" if e["tool"] == "answer" else "obligation_id"
+        match = next((a for a in got if a["tool"] == e["tool"] and (not e.get(key) or a.get(key) == e[key])),
                      next((a for a in got if a["tool"] == e["tool"]), {}))
         for key, want in e.items():
             if key == "tool":

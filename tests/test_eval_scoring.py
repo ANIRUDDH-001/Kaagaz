@@ -56,3 +56,12 @@ def test_score_speech_matches_expected_actions():
 
 def test_latency_reports_median_and_p90():
     assert latency([float(x) for x in range(1, 11)]) == (5.5, 9.0)
+
+
+def test_a_two_part_question_may_be_answered_in_two_parts():
+    expect = [{"tool": "answer", "used_obligation_ids": ["ob_elec"]}]
+    card = {"actions": [{"tool": "answer", "used_obligation_ids": ["ob_elec"]},
+                        {"tool": "answer", "used_obligation_ids": []}]}
+    assert all(score_speech(expect, card).values())
+    assert not all(score_speech(expect, {"actions": [{"tool": "answer", "used_obligation_ids": []},
+                                                     {"tool": "answer", "used_obligation_ids": []}]}).values())
