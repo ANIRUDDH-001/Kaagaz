@@ -51,7 +51,7 @@ export function steps(kind, stage, done = false) {
 function field(i, key, label, value, type, flagged, evidence, cls = "") {
   const extra = type === "number" ? ' inputmode="numeric" min="0" step="1"' : "";
   return `<label class="f ${cls} ${flagged ? "flag" : ""}"><span class="lbl">${esc(label)}${flagged ? ` · <em>${esc(t("check_this"))}</em>` : ""}</span>
-    <input data-i="${i}" data-k="${key}" type="${type}" value="${esc(value ?? "")}"${extra}>
+    ${cls === "money" ? '<span class="money-row"><span class="cur" aria-hidden="true">₹</span>' : ""}<input data-i="${i}" data-k="${key}" type="${type}" value="${esc(value ?? "")}"${extra}>${cls === "money" ? "</span>" : ""}
     ${evidence ? `<small class="ev">${esc(t("on_paper"))}: <q>${esc(evidence)}</q></small>` : ""}</label>`;
 }
 

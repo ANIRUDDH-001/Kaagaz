@@ -43,7 +43,7 @@ button{cursor:pointer}
 .seg button{flex:1;min-height:48px}
 
 .chip{display:flex;gap:8px;align-items:center;width:fit-content;max-width:calc(100% - 32px);margin-top:12px;padding:7px 14px;
-  border-radius:999px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink-2);font-size:.85rem}
+  border-radius:12px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink-2);font-size:.85rem;line-height:1.35}
 .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--amber);flex:none}
 .chip.real::before{background:var(--green)}
 
@@ -82,7 +82,7 @@ main{padding-bottom:32px}
   transition:background .2s,transform .12s}
 .speak .ic{width:46px;height:46px;stroke-width:1.6}
 .speak:active{transform:scale(.97)}
-.speak .halo{position:absolute;inset:-4px;border-radius:50%;border:2px dashed color-mix(in srgb,var(--paper) 45%,transparent);inset:8px}
+.speak .halo{position:absolute;border-radius:50%;border:2px dashed color-mix(in srgb,var(--paper) 45%,transparent);inset:8px}
 .speak.rec{background:var(--stamp);animation:pulse 1.4s ease-in-out infinite}
 .speak.rec .halo{animation:turn 6s linear infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 10px color-mix(in srgb,var(--stamp) 18%,transparent),0 0 0 22px color-mix(in srgb,var(--stamp) 8%,transparent)}
@@ -93,7 +93,7 @@ main{padding-bottom:32px}
 .hint{color:var(--ink-2);font-size:.88rem}
 
 .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left}
-.act-btn{display:flex;gap:10px;align-items:center;min-height:64px;padding:12px;border-radius:16px;
+.act-btn{display:flex;gap:12px;align-items:center;text-align:left;min-height:64px;padding:12px;border-radius:16px;
   background:var(--paper-2);border:1.5px solid var(--line);box-shadow:var(--lift)}
 .act-btn .ic{color:var(--ink)}
 .act-btn b{display:block;font-weight:600;line-height:1.25}
@@ -180,8 +180,11 @@ main{padding-bottom:32px}
 .act.line .ic{color:var(--green)}
 .act.answer{font-size:1.15rem}
 .act.clarify{font-size:1.1rem;font-weight:600}
-.slip-btns{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px}
-.slip-btns .primary,.slip-btns .warn{flex:1 1 100%}
+.slip-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;padding-top:6px}
+.slip-btns .primary,.slip-btns .warn{grid-column:1/-1}
+.slip-btns .btn{padding:0 10px}
+.money-row{display:flex;align-items:baseline;gap:4px}
+.money-row .cur{font-family:var(--display-en);font-size:1.6rem;font-weight:600;color:var(--ink-2)}
 
 /* ---------- days-left badge ---------- */
 .badge{display:inline-flex;align-items:center;min-height:26px;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:600;
