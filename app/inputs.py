@@ -23,6 +23,7 @@ class PendingInput:
     mime: str | None
     text: str | None
     status: str = "processing"   # processing -> ready | failed; ready -> confirming -> confirmed
+    stage: str = "sent"          # what the progress dots show: sent -> listening (voice) -> reading
     transcript: str | None = None
     card: dict | None = None
     error: str | None = None

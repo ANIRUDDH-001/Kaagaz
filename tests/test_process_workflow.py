@@ -91,3 +91,20 @@ async def test_upload_lost_after_restart_is_gone(env, tmp_path):
     inputs.drop_file(p)
     assert await run(env, inputs, FakeGemma(PAPER), FakeSTT(""), p) == "failed"
     assert p.error == "Gone"
+
+
+async def test_understanding_marks_the_reading_stage(tmp_path):
+    from flows.ai_activities import AIActivities
+    from tests.fakes import mock_store
+
+    inputs = InputStore(str(tmp_path))
+    p = inputs.create("h1", "parent", "text", text="bijli ka bill kab hai")
+    seen = []
+
+    class Spy(FakeGemma):
+        async def generate_json(self, *args, **kwargs):
+            seen.append(p.stage)
+            return await super().generate_json(*args, **kwargs)
+
+    await AIActivities(inputs, mock_store(), Spy({"actions": []}), FakeSTT("")).understand(p.id)
+    assert seen == ["reading"]

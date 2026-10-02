@@ -46,6 +46,10 @@ services:
     runtime: static
     buildCommand: echo "window.KAAGAZ_API = '$KAAGAZ_API';" > web/config.js
     staticPublishPath: web
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
     envVars:
       - key: KAAGAZ_API
         sync: false

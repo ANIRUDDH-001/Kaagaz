@@ -16,6 +16,7 @@ STORED_FIELDS = ("title", "title_hi", "category", "amount_inr", "due_date", "act
                  "evidence_amount", "evidence_due_date", "evidence_consequence", "summary_hi",
                  "remind_offsets_days", "escalate", "source", "scam")
 CHANGES = ("create_obligation", "mark_done", "snooze", "update_obligation")
+YEARLY = {"motor_insurance", "health_insurance", "life_insurance", "property_tax", "certificate_renewal"}
 # What the confirmation card lets the user edit. Everything else comes from the card the server made.
 EDITABLE = {"create_obligation": ("title", "title_hi", "amount_inr", "due_date", "action", "escalate",
                                   "remind_offsets_days")}
@@ -61,6 +62,33 @@ def _event(now: datetime, role: str, event: str, detail=None) -> dict:
     return {"at": now, "by_role": role, "event": event, "detail": detail}
 
 
+def next_year_due(due: date, today: date) -> date:
+    """The same day a year on, or the first such day that hasn't passed. Feb 29 becomes Feb 28."""
+    years = 1
+    while True:
+        year = due.year + years
+        d = date(year, 2, 28) if (due.month, due.day) == (2, 29) else due.replace(year=year)
+        if d >= today:
+            return d
+        years += 1
+
+
+def repeat_offer(ob: dict, today: date) -> dict | None:
+    if ob.get("category") not in YEARLY:
+        return None
+    return {"obligation_id": ob["_id"],
+            "due_date": next_year_due(date.fromisoformat(ob["due_date"]), today).isoformat()}
+
+
+async def _start(temporal, hh: dict, oid: str, due: str, offsets: list[int], escalate: bool) -> None:
+    args = ObligationArgs(oid, hh["_id"], due, offsets, "demo" if hh["mode"] == "demo" else "real", escalate)
+    try:
+        await temporal.start_workflow(ObligationWorkflow.run, args, id=f"obligation-{oid}", task_queue=TASK_QUEUE,
+                                      id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE)
+    except WorkflowAlreadyStartedError:
+        pass
+
+
 async def create_obligation(store, temporal, hh: dict, a: dict, role: str, now: datetime,
                             oid: str, input_id: str) -> dict:
     """`oid` is derived from the input, so a retried confirm finds its own record instead of adding one."""
@@ -75,21 +103,42 @@ async def create_obligation(store, temporal, hh: dict, a: dict, role: str, now: 
         await store.insert_obligation(doc)
     except DuplicateKeyError:
         pass   # a retry after a crash: the record exists; make sure its workflow does too
-    args = ObligationArgs(oid, hh["_id"], v["due_date"], v["remind_offsets_days"],
-                          "demo" if hh["mode"] == "demo" else "real", v["escalate"])
-    try:
-        await temporal.start_workflow(ObligationWorkflow.run, args, id=doc["workflow_id"], task_queue=TASK_QUEUE,
-                                      id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE)
-    except WorkflowAlreadyStartedError:
-        pass
+    await _start(temporal, hh, oid, v["due_date"], v["remind_offsets_days"], v["escalate"])
     return {"tool": "create_obligation", "ok": True, "obligation_id": oid}
 
 
-async def mark_done(store, temporal, ob: dict, role: str, now: datetime) -> None:
+async def mark_done(store, temporal, ob: dict, role: str, now: datetime) -> dict | None:
+    """Returns next year's offer for a paper that comes every year (the UI asks; nothing is added here)."""
+    offer = repeat_offer(ob, today_ist(now))
     if ob["status"] == "done":
-        return
+        return offer
     await store.set_obligation(ob["_id"], {"status": "done", "done_at": now}, _event(now, role, "done"))
     await _signal(temporal, ob["workflow_id"], ObligationWorkflow.mark_done)
+    return offer
+
+
+async def repeat_obligation(store, temporal, hh: dict, ob: dict, role: str, now: datetime) -> dict:
+    """Next year's reminder for a renewal. The tap on "Yes" is the confirmation. Next year's amount isn't known,
+    so it stays empty (last year's is kept to show); the id comes from the old one, so a double tap adds one."""
+    if ob.get("category") not in YEARLY:
+        raise ActionError("not_yearly")
+    if ob["status"] != "done":
+        raise ActionError("not_done_yet")
+    due = next_year_due(date.fromisoformat(ob["due_date"]), today_ist(now)).isoformat()
+    oid = f"{ob['_id']}-y{due[:4]}"
+    doc = {"_id": oid, "household_id": hh["_id"], **{k: ob.get(k) for k in STORED_FIELDS},
+           "amount_inr": None, "last_amount_inr": ob.get("amount_inr"), "due_date": due,
+           "evidence_amount": None, "evidence_due_date": None, "evidence_consequence": None, "scam": None,
+           "source": "repeat", "repeat_of": ob["_id"], "status": "active", "snoozed_until": None,
+           "snoozed_at": None, "workflow_id": f"obligation-{oid}", "source_input_id": None,
+           "history": [_event(now, role, "created", {"repeat_of": ob["_id"]})], "created_at": now,
+           "expires_at": hh.get("expires_at")}
+    try:
+        await store.insert_obligation(doc)
+    except DuplicateKeyError:
+        pass
+    await _start(temporal, hh, oid, due, ob.get("remind_offsets_days") or [30, 7, 1], ob.get("escalate", True))
+    return {"ok": True, "obligation_id": oid, "due_date": due}
 
 
 async def snooze(store, temporal, ob: dict, until: str, role: str, now: datetime) -> None:
@@ -143,8 +192,10 @@ async def execute_actions(store, temporal, hh: dict, actions: list[dict], role: 
             if ob is None:
                 raise ActionError("not_found")
             if tool == "mark_done":
-                await mark_done(store, temporal, ob, role, now)
-            elif tool == "snooze":
+                offer = await mark_done(store, temporal, ob, role, now)
+                results.append({"tool": tool, "ok": True, "obligation_id": ob["_id"], "repeat_offer": offer})
+                continue
+            if tool == "snooze":
                 await snooze(store, temporal, ob, a.get("until") or "", role, now)
             else:
                 await update_obligation(store, temporal, ob, a, role, now)

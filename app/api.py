@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Reque
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app.actions import ActionError, bind_to_card, execute_actions, mark_done, snooze
+from app.actions import YEARLY, ActionError, bind_to_card, execute_actions, mark_done, repeat_obligation, snooze
 from app.clock import now_utc, today_ist
 from app.db import ROLES
 from app.i18n import msg
@@ -72,6 +72,8 @@ def _public_obligation(o: dict, mode: str, now) -> dict:
     return {"id": o["_id"], "title": o.get("title"), "title_hi": o.get("title_hi"), "category": o.get("category"),
             "amount_inr": o.get("amount_inr"), "due_date": o["due_date"], "action": o.get("action"),
             "consequence": o.get("consequence"), "status": o["status"], "snoozed_until": o.get("snoozed_until"),
+            "last_amount_inr": o.get("last_amount_inr"), "repeat_of": o.get("repeat_of"),
+            "yearly": o.get("category") in YEARLY,
             "next": {"label": p.label, "kind": p.kind, "at": p.at.isoformat()} if p else None}
 
 
@@ -151,7 +153,8 @@ def _pending(request: Request, input_id: str, hh: dict):
 @router.get("/inputs/{input_id}")
 async def get_input(input_id: str, request: Request, hh: dict = Depends(household)):
     p = _pending(request, input_id, hh)
-    return {"status": p.status, "kind": p.kind, "transcript": p.transcript, "card": p.card, "error": p.error,
+    return {"status": p.status, "stage": p.stage, "kind": p.kind, "transcript": p.transcript, "card": p.card,
+            "error": p.error,
             "message": msg(ERROR_CODES.get(p.error, "busy")) if p.error else None}
 
 
@@ -199,8 +202,18 @@ async def warn_son(input_id: str, request: Request, hh: dict = Depends(household
 @router.post("/obligations/{oid}/done")
 async def done(oid: str, body: RoleBody, request: Request, hh: dict = Depends(household)):
     ob = await _obligation(request, oid, hh)
-    await mark_done(request.app.state.store, request.app.state.temporal, ob, _role(body.role), now_utc())
-    return {"ok": True}
+    offer = await mark_done(request.app.state.store, request.app.state.temporal, ob, _role(body.role), now_utc())
+    return {"ok": True, "repeat_offer": offer}
+
+
+@router.post("/obligations/{oid}/repeat")
+async def repeat_route(oid: str, body: RoleBody, request: Request, hh: dict = Depends(household)):
+    ob = await _obligation(request, oid, hh)
+    try:
+        return await repeat_obligation(request.app.state.store, request.app.state.temporal, hh, ob,
+                                       _role(body.role), now_utc())
+    except ActionError as e:
+        raise HTTPException(422, e.message) from None
 
 
 @router.post("/obligations/{oid}/snooze")

@@ -76,6 +76,13 @@ def create_app(*, store=None, temporal=None, push=None, gemma=None, stt=None, tt
                 "stt": settings.stt_backend, "tts": settings.tts_backend,
                 "push_key": settings.vapid_public_key}
 
+    @app.middleware("http")
+    async def revalidate_web_files(request, call_next):
+        response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"   # ETag check each time: a new deploy is seen at once
+        return response
+
     app.include_router(router)
     if WEB_DIR.exists():
         # Locally one process serves everything; on Render the static site serves web/.

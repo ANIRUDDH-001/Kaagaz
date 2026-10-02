@@ -316,3 +316,14 @@ def test_repeat_before_done_is_refused(ctx):
     oid = confirm_one(ctx)
     r = ctx.c.post(f"/api/obligations/{oid}/repeat", json={"role": "parent"})
     assert r.status_code == 422 and r.json()["detail"]["code"] == "not_done_yet"
+
+
+def test_web_files_are_always_revalidated(ctx):
+    r = ctx.c.get("/app.js")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
+    assert "cache-control" not in ctx.c.get("/api/health").headers
+
+
+def test_input_reports_its_stage(ctx):
+    p = ctx.app.state.inputs.create(ctx.hid, "parent", "text", text="x")
+    assert ctx.c.get(f"/api/inputs/{p.id}").json()["stage"] == "sent"

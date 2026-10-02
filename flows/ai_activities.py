@@ -45,6 +45,7 @@ class AIActivities:
         p = self._get(input_id)
         if p.kind != "voice" or p.transcript:
             return
+        p.stage = "listening"
         self._file(p)
         try:
             text = await self.stt.transcribe(p.path, p.mime or "audio/webm")
@@ -57,6 +58,7 @@ class AIActivities:
     @activity.defn
     async def understand(self, input_id: str) -> None:
         p = self._get(input_id)
+        p.stage = "reading"
         today = today_ist(self.clock())
         try:
             if p.kind == "photo":
