@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: kaagaz-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: APP_MODE
+        value: demo
+      - key: LLM_BACKEND
+        value: gemini
+      - key: STT_BACKEND
+        value: elevenlabs
+      - key: TTS_BACKEND
+        value: elevenlabs
+      - key: UPLOAD_DIR
+        value: /tmp/kaagaz-uploads
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: TEMPORAL_ADDRESS
+        sync: false
+      - key: TEMPORAL_NAMESPACE
+        sync: false
+      - key: TEMPORAL_API_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+  - type: web
+    name: kaagaz
+    runtime: static
+    buildCommand: echo "window.KAAGAZ_API = '$KAAGAZ_API';" > web/config.js
+    staticPublishPath: web
+    envVars:
+      - key: KAAGAZ_API
+        sync: false
