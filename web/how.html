@@ -4,65 +4,171 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>How Kaagaz works</title>
-  <meta name="description" content="Architecture, privacy modes and measured accuracy of Kaagaz.">
+  <meta name="description" content="How Kaagaz understands papers, remembers deadlines and protects against scams — architecture, rules, privacy and measured accuracy.">
+  <meta name="theme-color" content="#f7f2e8">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;600&family=Mukta:wght@400;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>try { if (localStorage.getItem("kaagaz.theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) { /* private mode */ }</script>
   <style>
-    .doc { max-width: 720px; } .doc h1 { margin: 24px 0 8px; } .doc p, .doc li { color: var(--ink); }
-    table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 8px 0 16px; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    .wrap { overflow-x: auto; } pre { white-space: pre-wrap; background: var(--surface); padding: 12px; border-radius: 12px; font-size: .8rem; }
+    .doc{max-width:720px;margin-inline:auto;padding:8px 16px 48px}
+    .doc h1{font-size:2.1rem;margin:22px 0 6px;letter-spacing:-.01em}
+    .lede{font-size:1.15rem;color:var(--ink-2);max-width:56ch}
+    .doc h2{font-size:1.45rem;margin:38px 0 10px}
+    .doc h3{font-size:1.1rem;margin:18px 0 6px}
+    .doc p,.doc li{max-width:66ch}
+    .doc p+p{margin-top:10px}
+    .doc ul,.doc ol{padding-left:1.3em;margin:8px 0}
+    .doc li+li{margin-top:6px}
+    .loop{list-style:none;padding:0!important;display:grid;gap:8px;counter-reset:s}
+    .loop li{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 14px;background:var(--paper-2);border:1px solid var(--line);border-radius:14px;counter-increment:s;max-width:none}
+    .loop li::before{content:counter(s);grid-row:span 2;font-family:var(--display-en);font-weight:600;font-size:1.3rem;color:var(--stamp)}
+    .loop b{font-family:var(--display);font-weight:600}
+    .rules{counter-reset:r;list-style:none;padding:0!important}
+    .rules li{position:relative;padding:10px 0 10px 40px;border-bottom:1px dashed var(--line);max-width:none}
+    .rules li::before{counter-increment:r;content:counter(r);position:absolute;left:0;top:9px;width:28px;height:28px;border-radius:50%;
+      border:2px solid var(--ink);display:grid;place-items:center;font-weight:600;font-size:.85rem}
+    .rules li.new::before{border-color:var(--stamp);color:var(--stamp)}
+    .figure{margin:12px 0;padding:14px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--radius)}
+    .fig-scroll{overflow-x:auto}
+    .figure svg{display:block;width:100%;min-width:560px;height:auto}
+    .figure figcaption{margin-top:8px;color:var(--ink-2);font-size:.88rem}
+    .wrap{overflow-x:auto;margin:10px 0 14px;border:1px solid var(--line);border-radius:14px;background:var(--paper-2)}
+    table{width:100%;border-collapse:collapse;font-size:.92rem}
+    th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{font-weight:600;color:var(--ink-2);font-size:.85rem}
+    tr:last-child td{border-bottom:0}
+    td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+    .stat{padding:14px;border-radius:14px;background:var(--paper-2);border:1px solid var(--line)}
+    .stat b{display:block;font-family:var(--display-en);font-size:1.7rem;font-weight:600;line-height:1.1}
+    .stat span{color:var(--ink-2);font-size:.85rem}
+    .note{padding:12px 14px;border-left:3px solid var(--amber);background:var(--amber-bg);border-radius:0 12px 12px 0;margin:12px 0}
+    code{font-size:.88em;background:var(--paper-2);border:1px solid var(--line);border-radius:6px;padding:1px 5px}
+    .back{display:inline-flex;align-items:center;min-height:48px;font-weight:600;color:var(--ink)}
   </style>
 </head>
 <body>
-  <header class="top"><div class="brand"><a href="./" style="color:inherit;text-decoration:none"><span class="logo">काग़ज़</span><span class="sub">Kaagaz</span></a></div></header>
+  <header class="top">
+    <div class="top-row">
+      <a class="brand" href="./" aria-label="Kaagaz"><span class="brand-en">Kaagaz</span><span class="brand-hi" lang="hi">काग़ज़</span></a>
+      <a class="btn secondary small" href="./">Open the app</a>
+    </div>
+  </header>
+
   <main class="doc">
     <h1>How Kaagaz works</h1>
-    <p><b>Understand → confirm → remember → follow through → escalate.</b> Gemma decides what a paper means; Temporal makes sure it gets done.</p>
+    <p class="lede">Kaagaz understands a household paper or message, remembers what it asks for, and protects against the ones that are scams. It is built for a parent who handles the family's papers, and for the son who wants to know before something slips.</p>
 
     <h2>The loop</h2>
-    <ol>
-      <li>A photo of a paper, or a spoken instruction in Hindi, Hinglish or English.</li>
-      <li>Gemma 4 extracts the amount, the last date, the action and the consequence, each with the exact words it came from.</li>
-      <li>A confirmation card reads it back in Hindi. Amounts or dates the paper doesn't support are highlighted. Nothing is saved until the tap.</li>
-      <li>A Temporal workflow reminds 30, 7 and 1 days before. If it's still not done, the son is told.</li>
+    <ol class="loop">
+      <li><b>Understand</b><span>A photo of a bill, notice or message screenshot, or a spoken instruction in Hindi, Hinglish or English. Gemma 4 reads it and returns the amount, the last date, what to do and what happens if it's missed, each with the exact words it came from.</span></li>
+      <li><b>Confirm</b><span>A card reads it back in English or Hindi. A field the paper's words don't support is outlined for checking. Nothing is saved until the tap.</span></li>
+      <li><b>Remember</b><span>One Temporal workflow per paper reminds 30, 7 and 1 days before the date, or on the day he chose with "Later".</span></li>
+      <li><b>Follow through</b><span>If it still isn't done, the son gets an alert. Renewals that come every year are offered again for next year when marked done.</span></li>
+      <li><b>Protect</b><span>Every scan is checked for scam warning signs. A suspicious message gets a red stamp, the words that raised it, and a one-tap "Tell my son".</span></li>
     </ol>
 
+    <h2>The rules it never breaks</h2>
+    <ol class="rules">
+      <li><b>Never invent a fact.</b> Amount, date and consequence come only from the paper or his words, each with its evidence. No evidence, no value.</li>
+      <li><b>Nothing is saved without confirmation.</b> Only the confirm tap writes to the database and starts a workflow.</li>
+      <li><b>Real papers stay off the public demo.</b> The public site is for the fictitious sample papers; real family papers use private mode.</li>
+      <li><b>Temporal never sees content.</b> Workflows carry IDs and dates only. Titles, amounts and text live in MongoDB.</li>
+      <li class="new"><b>A scam warning is evidence, never a verdict.</b> Every sign carries the words that triggered it, and the server checks those words before showing it. Kaagaz never says "safe".</li>
+      <li class="new"><b>Both languages say the same thing.</b> Every message exists in English and Hindi; the model writes its summary and answers in both, in the same call.</li>
+    </ol>
+
+    <h2>The scam check</h2>
+    <p>Scammers send fake "electricity will be cut tonight" SMSs, KYC links and prize messages to exactly the people Kaagaz is for. So every scan is checked, automatically, for seven warning signs:</p>
+    <ul>
+      <li>asks you to pay a personal UPI ID, phone number or bank account;</li>
+      <li>has a link to pay or "update" details (short links and unusual web endings count more);</li>
+      <li>asks for an OTP, PIN or password;</li>
+      <li>asks you to install an app like AnyDesk;</li>
+      <li>threatens action within hours;</li>
+      <li>asks you to call a mobile number;</li>
+      <li>promises a prize, bonus, refund or cashback.</li>
+    </ul>
+    <p>Gemma proposes the signs and quotes the words for each. The server then checks every quote with plain pattern rules: a "personal payment" sign must actually contain a UPI ID, an account number or a phone number with a pay word, or it's dropped. A strong sign, or a threat plus a phone number, gives a red <b>warning</b>; weaker signs give an amber <b>caution</b>; no signs say nothing. A genuine bill with a due date and a helpline is not a warning sign on its own.</p>
+
+    <h2>Yearly renewals</h2>
+    <p>Insurance, property tax and certificate renewals come back every year. When one is marked done, Kaagaz offers the same reminder for next year's date. Next year's amount isn't known yet, so the card shows last year's amount instead of guessing; 29 February becomes 28 February, and tapping twice adds it once.</p>
+
     <h2>Architecture</h2>
-<pre>Browser (this page, static, never sleeps)
-   │ photo / voice / text, confirm, done, snooze
-   ▼
-API on Render (sleeps when idle) ───► MongoDB Atlas: obligations, inbox, history
-   │  + Temporal workers
-   ▼
-Temporal Cloud: timers, retries, signals ◄── GitHub Actions worker, 4× an hour
-   │
-   ├─ Gemma 4 (hosted 26B, or E4B on a laptop)
-   ├─ Speech-to-text (ElevenLabs Scribe, or Whisper on a laptop)
-   ├─ Hindi voice (ElevenLabs, or the browser)
-   └─ Web Push</pre>
-    <p>Temporal holds every timer, so reminders don't depend on the API being awake. Workflows carry only IDs and dates; content stays in the database. Photos and recordings are never stored.</p>
+    <figure class="figure">
+      <div class="fig-scroll"><svg viewBox="0 0 640 340" role="img" aria-labelledby="arch-t">
+        <title id="arch-t">Phone to FastAPI to Gemma and ElevenLabs; FastAPI and Temporal workflows share MongoDB; Temporal sends reminders and alerts the son.</title>
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+        <g fill="none" stroke="currentColor" stroke-width="1.6" style="color:var(--ink)">
+          <rect x="10" y="130" width="120" height="70" rx="14"/>
+          <rect x="200" y="130" width="140" height="70" rx="14"/>
+          <rect x="430" y="20" width="200" height="56" rx="12"/>
+          <rect x="430" y="96" width="200" height="56" rx="12"/>
+          <rect x="200" y="234" width="140" height="58" rx="12"/>
+          <rect x="430" y="200" width="200" height="70" rx="12" stroke="var(--stamp)"/>
+          <path d="M130 158H196" marker-end="url(#ar)"/>
+          <path d="M196 176H134" marker-end="url(#ar)"/>
+          <path d="M340 150L426 54" marker-end="url(#ar)"/>
+          <path d="M340 160L426 124" marker-end="url(#ar)"/>
+          <path d="M270 200V230" marker-end="url(#ar)"/>
+          <path d="M426 248L344 262" marker-end="url(#ar)"/>
+          <path d="M340 180L426 222" marker-end="url(#ar)"/>
+          <path d="M530 270V310H70V204" stroke-dasharray="5 5" stroke="var(--stamp)" marker-end="url(#ar)"/>
+        </g>
+        <g font-family="Inter, system-ui, sans-serif" font-size="14" fill="var(--ink)" text-anchor="middle">
+          <text x="70" y="161" font-weight="600">Phone</text><text x="70" y="181" font-size="12" fill="var(--ink-2)">photo · voice · tap</text>
+          <text x="270" y="161" font-weight="600">FastAPI</text><text x="270" y="181" font-size="12" fill="var(--ink-2)">checks every fact</text>
+          <text x="530" y="45" font-weight="600">Gemma 4</text><text x="530" y="63" font-size="12" fill="var(--ink-2)">26B hosted · E4B on a laptop</text>
+          <text x="530" y="121" font-weight="600">ElevenLabs</text><text x="530" y="139" font-size="12" fill="var(--ink-2)">Hinglish speech in, voice out</text>
+          <text x="270" y="259" font-weight="600">MongoDB Atlas</text><text x="270" y="277" font-size="12" fill="var(--ink-2)">papers, history, inbox</text>
+          <text x="530" y="228" font-weight="600">Temporal workflows</text><text x="530" y="246" font-size="12" fill="var(--ink-2)">timers for months, retries</text><text x="530" y="262" font-size="12" fill="var(--ink-2)">IDs and dates only</text>
+          <text x="300" y="332" font-size="12" fill="var(--stamp)">reminders to Papa · alert to the son (web push + inbox)</text>
+        </g>
+      </svg></div>
+      <figcaption>Temporal holds every timer, so reminders don't depend on the API being awake; a scheduled worker also runs four times an hour.</figcaption>
+    </figure>
 
-    <h2>Two modes, one codebase</h2>
+    <h2>Privacy and private mode</h2>
     <div class="wrap"><table>
-      <tr><th></th><th>Public demo (this site)</th><th>Private (family laptop)</th></tr>
-      <tr><td>Gemma</td><td>Gemma 4 26B via the Gemini API</td><td>Gemma 4 E4B via Ollama, on CPU</td></tr>
-      <tr><td>Speech-to-text</td><td>ElevenLabs Scribe v2</td><td>Whisper large-v3-turbo</td></tr>
-      <tr><td>Voice</td><td>ElevenLabs</td><td>Browser</td></tr>
-      <tr><td>Photos and voice leave the device?</td><td>Yes — sample papers only</td><td>No</td></tr>
+      <tr><th></th><th>Public demo (this site)</th><th>Private mode (family laptop)</th></tr>
+      <tr><td>Gemma</td><td>Gemma 4 26B via the Gemini API</td><td>Gemma 4 E4B via Ollama, on the laptop</td></tr>
+      <tr><td>Speech to text</td><td>ElevenLabs Scribe</td><td>Whisper, on the laptop</td></tr>
+      <tr><td>Voice</td><td>ElevenLabs</td><td>The browser's own voice</td></tr>
+      <tr><td>Photos and voice leave the device?</td><td>Yes, so use the sample papers</td><td>No; only confirmed reminder details sync</td></tr>
     </table></div>
+    <p>Photos and recordings are never stored. Demo households expire on their own.</p>
 
-    <h2>Measured, not assumed</h2>
-    <p>From <code>eval/run_eval.py</code>: four phone photos of specimen papers (20 fields) and four spoken instructions, run on 2 Oct 2026.</p>
+    <h2 id="measured">Measured, not assumed</h2>
+    <p>Kaagaz is scored on 26 fictitious documents (6 of them scam messages), each photographed in four simulated conditions (clean, tilted with a shadow, dim and noisy, creased and blurred), plus 20 typed instructions and 8 synthetic-voice clips mixed with room noise. All names and numbers are invented; photo conditions and voices are simulated, not real phone photos or real elderly voices.</p>
+    <h3>Gemma 4 26B (public demo), run on 2 October 2026</h3>
+    <div class="stats">
+      <div class="stat"><b>100%</b><span>paper fields exactly right (412 of 412)</span></div>
+      <div class="stat"><b>0</b><span>wrong amounts or dates that were not highlighted</span></div>
+      <div class="stat"><b>24/24</b><span>scam messages given the red warning</span></div>
+      <div class="stat"><b>0 of 80</b><span>genuine papers wrongly given the red warning</span></div>
+    </div>
     <div class="wrap"><table>
-      <tr><th>Model</th><th>Photo fields right</th><th>Wrong and not highlighted</th><th>Spoken instructions fully right</th><th>Time per item</th></tr>
-      <tr><td>Gemma 4 26B, minimal thinking (public demo)</td><td>20/20</td><td>0</td><td>3/4 — added a question for the half it couldn't answer</td><td>4–11 s</td></tr>
-      <tr><td>Gemma 4 E4B on a laptop CPU (private)</td><td>18/20</td><td>1 — copied the late-payment amount on the electricity bill</td><td>3/4 — heard "atharah hazaar" as 14,400</td><td>4–18 s</td></tr>
+      <tr><th>Photo condition (simulated)</th><th>Fields right</th><th>Silent errors</th></tr>
+      <tr><td>Clean</td><td class="n">103/103</td><td class="n">0</td></tr>
+      <tr><td>Tilted on a table, with a shadow</td><td class="n">103/103</td><td class="n">0</td></tr>
+      <tr><td>Dim light, sensor noise, heavy JPEG</td><td class="n">103/103</td><td class="n">0</td></tr>
+      <tr><td>Creased, rotated, blurred</td><td class="n">103/103</td><td class="n">0</td></tr>
     </table></div>
-    <p>Earlier model choice (spike, 2 Oct): 26B with full thinking 20/20 photo fields but 18–36 s; E2B on a laptop 15/20 and invented a consequence — too weak to ship.</p>
-    <p>That's why every amount and date shows the words it came from, and why nothing is saved without a confirmation.</p>
-    <p><a href="./">← Back to Kaagaz</a></p>
+    <div class="wrap"><table>
+      <tr><th>Instructions</th><th>Fully right</th></tr>
+      <tr><td>Typed (Hindi, Hinglish, English)</td><td class="n">20/20</td></tr>
+      <tr><td>Spoken (synthetic voice + noise → speech to text → Gemma)</td><td class="n">8/8</td></tr>
+      <tr><td>Time per call</td><td class="n">median 9.7 s, 90th percentile 13.4 s</td></tr>
+    </table></div>
+    <p class="note">Read these numbers for what they are. The documents are cleanly typeset and the scams are textbook examples, so a 26B model reads them well even through the simulated damage. Real handwriting, faded carbon copies and cleverer scams will be harder. The safety rules (evidence for every fact, highlighting, the confirmation tap) are there because a perfect score on a test set is not a promise.</p>
+    <h3>Gemma 4 E4B on a laptop (private mode)</h3>
+    <p>On the earlier, smaller set (4 clean papers, 4 spoken instructions): 18/20 paper fields right, one silent error (it copied the late-payment amount on the electricity bill), 3/4 instructions fully right ("atharah hazaar" heard as 14,400), 4–18 s per item on a laptop CPU. The full v2 run on the laptop model was not completed for this submission.</p>
+    <p class="note">This is why every amount and date shows the words it came from, why anything unsupported is highlighted, and why nothing is saved without a tap.</p>
+    <p>Full tables: <code>eval/results-gemini.md</code>, <code>eval/results-ollama.md</code>; method: <code>eval/README.md</code>.</p>
+    <p><a class="back" href="./">Back to Kaagaz</a></p>
   </main>
 </body>
 </html>

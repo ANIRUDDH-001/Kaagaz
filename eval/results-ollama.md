@@ -1,5 +1,7 @@
 # Eval — ollama:gemma4:e4b (2026-10-02 15:08)
 
+> Earlier eval set (v1): 4 clean papers and 4 spoken instructions. The v2 run (26 documents × 4 conditions) on this laptop model was not completed for this submission.
+
 **ollama:gemma4:e4b**: paper fields exactly right 18/20; wrong amounts/dates NOT highlighted (silent errors) 1/8; papers with a highlighted field 1/4; spoken instructions fully right 3/4
 
 | kind | case | score | time | wrong | highlighted for checking |
