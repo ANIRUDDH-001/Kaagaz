@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Kaagaz works</title>
+  <meta name="description" content="Architecture, privacy modes and measured accuracy of Kaagaz.">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .doc { max-width: 720px; } .doc h1 { margin: 24px 0 8px; } .doc p, .doc li { color: var(--ink); }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 8px 0 16px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .wrap { overflow-x: auto; } pre { white-space: pre-wrap; background: var(--surface); padding: 12px; border-radius: 12px; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <header class="top"><div class="brand"><a href="./" style="color:inherit;text-decoration:none"><span class="logo">काग़ज़</span><span class="sub">Kaagaz</span></a></div></header>
+  <main class="doc">
+    <h1>How Kaagaz works</h1>
+    <p><b>Understand → confirm → remember → follow through → escalate.</b> Gemma decides what a paper means; Temporal makes sure it gets done.</p>
+
+    <h2>The loop</h2>
+    <ol>
+      <li>A photo of a paper, or a spoken instruction in Hindi, Hinglish or English.</li>
+      <li>Gemma 4 extracts the amount, the last date, the action and the consequence, each with the exact words it came from.</li>
+      <li>A confirmation card reads it back in Hindi. Amounts or dates the paper doesn't support are highlighted. Nothing is saved until the tap.</li>
+      <li>A Temporal workflow reminds 30, 7 and 1 days before. If it's still not done, the son is told.</li>
+    </ol>
+
+    <h2>Architecture</h2>
+<pre>Browser (this page, static, never sleeps)
+   │ photo / voice / text, confirm, done, snooze
+   ▼
+API on Render (sleeps when idle) ───► MongoDB Atlas: obligations, inbox, history
+   │  + Temporal workers
+   ▼
+Temporal Cloud: timers, retries, signals ◄── GitHub Actions worker, 4× an hour
+   │
+   ├─ Gemma 4 (hosted 26B, or E4B on a laptop)
+   ├─ Speech-to-text (ElevenLabs Scribe, or Whisper on a laptop)
+   ├─ Hindi voice (ElevenLabs, or the browser)
+   └─ Web Push</pre>
+    <p>Temporal holds every timer, so reminders don't depend on the API being awake. Workflows carry only IDs and dates; content stays in the database. Photos and recordings are never stored.</p>
+
+    <h2>Two modes, one codebase</h2>
+    <div class="wrap"><table>
+      <tr><th></th><th>Public demo (this site)</th><th>Private (family laptop)</th></tr>
+      <tr><td>Gemma</td><td>Gemma 4 26B via the Gemini API</td><td>Gemma 4 E4B via Ollama, on CPU</td></tr>
+      <tr><td>Speech-to-text</td><td>ElevenLabs Scribe v2</td><td>Whisper large-v3-turbo</td></tr>
+      <tr><td>Voice</td><td>ElevenLabs</td><td>Browser</td></tr>
+      <tr><td>Photos and voice leave the device?</td><td>Yes — sample papers only</td><td>No</td></tr>
+    </table></div>
+
+    <h2>Measured, not assumed</h2>
+    <div class="wrap"><table>
+      <tr><th>Model</th><th>Phone-photo fields</th><th>Spoken instructions</th><th>Time</th></tr>
+      <tr><td>Gemma 4 26B, full thinking</td><td>20/20</td><td>11/11</td><td>18–36 s</td></tr>
+      <tr><td>Gemma 4 26B, minimal thinking (used)</td><td>19/20 — computed a discount instead of copying the total</td><td>11/11</td><td>4–15 s</td></tr>
+      <tr><td>Gemma 4 E4B on a laptop CPU</td><td>18/20</td><td>9/11</td><td>7–27 s</td></tr>
+      <tr><td>Gemma 4 E2B on a laptop CPU</td><td>15/20 — invented a consequence</td><td>weak</td><td>13–15 s</td></tr>
+    </table></div>
+    <p>That's why every amount and date shows the words it came from, and why nothing is saved without a confirmation.</p>
+    <p><a href="./">← Back to Kaagaz</a></p>
+  </main>
+</body>
+</html>

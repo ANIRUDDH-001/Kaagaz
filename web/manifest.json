@@ -1,0 +1,12 @@
+{
+  "name": "Kaagaz — काग़ज़",
+  "short_name": "काग़ज़",
+  "description": "Important papers, understood and remembered.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbf8f1",
+  "theme_color": "#1d4d3a",
+  "lang": "hi",
+  "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+}

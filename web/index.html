@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kaagaz — काग़ज़</title>
+  <meta name="description" content="A voice-first helper that reads household papers in Hindi, reminds before deadlines, and tells the son if something slips.">
+  <meta name="theme-color" content="#1d4d3a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body class="asleep">
+  <header class="top">
+    <div class="brand"><span class="logo">काग़ज़</span><span class="sub">Kaagaz</span></div>
+    <div class="roles" role="group" aria-label="कौन इस्तेमाल कर रहा है / Who is using">
+      <button type="button" class="role" data-role="parent">पापा</button>
+      <button type="button" class="role" data-role="son">बेटा</button>
+    </div>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <section id="waking" class="waking" aria-live="polite">
+      <div class="spin"></div>
+      <div>सहायक जाग रहा है… <small>The assistant is waking up — about a minute after a quiet spell.</small></div>
+    </section>
+
+    <section class="big-actions" aria-label="मुख्य काम">
+      <button type="button" id="btn-speak" class="big"><span class="ico" aria-hidden="true">🎙️</span><span class="hi">बोलिए</span><span class="en">Speak</span></button>
+      <button type="button" id="btn-scan" class="big"><span class="ico" aria-hidden="true">📄</span><span class="hi">काग़ज़ दिखाइए</span><span class="en">Scan paper</span></button>
+      <button type="button" id="btn-ask" class="big"><span class="ico" aria-hidden="true">❓</span><span class="hi">पूछिए</span><span class="en">Ask</span></button>
+      <input id="file" type="file" accept="image/*" capture="environment" hidden>
+    </section>
+
+    <section id="ask-box" class="ask" hidden>
+      <form id="ask-form">
+        <input id="ask-text" maxlength="500" autocomplete="off" placeholder="जैसे: बिजली का बिल कब तक भरना है?" aria-label="सवाल लिखिए">
+        <button class="primary">भेजें</button>
+      </form>
+      <small>या 🎙️ बोलिए दबाकर पूछिए · or tap Speak and ask</small>
+    </section>
+
+    <section id="status" class="status" aria-live="polite" hidden></section>
+    <section id="card" class="card" aria-live="polite" hidden></section>
+
+    <section class="samples">
+      <h2>नमूना काग़ज़ आज़माइए <small>Try a sample paper</small></h2>
+      <div class="sample-row">
+        <button type="button" class="sample" data-sample="motor_renewal"><img src="samples/motor_renewal.jpg" alt="Sample car insurance renewal notice" loading="lazy"><span>गाड़ी का बीमा</span></button>
+        <button type="button" class="sample" data-sample="electricity_bill"><img src="samples/electricity_bill.jpg" alt="Sample electricity bill" loading="lazy"><span>बिजली का बिल</span></button>
+        <button type="button" class="sample" data-sample="school_fee"><img src="samples/school_fee.jpg" alt="Sample school fee notice" loading="lazy"><span>स्कूल फ़ीस</span></button>
+        <button type="button" class="sample" data-sample="property_tax"><img src="samples/property_tax.jpg" alt="Sample property tax notice" loading="lazy"><span>प्रॉपर्टी टैक्स</span></button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>आगे क्या है <small>What's next</small></h2>
+      <ul id="items" class="items"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>सूचनाएँ <small>Inbox</small> <span id="unread" class="badge" hidden></span></h2>
+      <button type="button" id="btn-push" class="link">🔔 फ़ोन पर सूचना चालू करें · Turn on notifications</button>
+      <ul id="inbox" class="inbox"></ul>
+    </section>
+  </main>
+
+  <footer class="foot"><a href="how.html">यह कैसे काम करता है · How it works</a></footer>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
