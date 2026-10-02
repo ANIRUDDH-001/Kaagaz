@@ -1,10 +1,10 @@
 """Run confirmed actions. The only code path that changes obligations or starts workflows."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from pymongo.errors import DuplicateKeyError
 from temporalio.common import WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
-from temporalio.service import RPCError
+from temporalio.service import RPCError, RPCStatusCode
 
 from ai.understand import validate_create
 from app.clock import today_ist
@@ -39,11 +39,17 @@ def bind_to_card(card_actions: list[dict], submitted: list[dict]) -> list[dict]:
     return bound
 
 
-async def _signal(temporal, workflow_id: str, signal, *args) -> None:
+async def _signal(temporal, workflow_id: str, signal, *args, needs_workflow: bool = False) -> None:
+    """`needs_workflow`: the change only means something if reminders follow (snooze, new date), so it is sent
+    before the database write and a closed workflow is an error. Done and cancel stand on the database alone."""
     try:
         await temporal.get_workflow_handle(workflow_id).signal(signal, *args)
-    except RPCError:
-        pass   # the workflow already finished (all reminders sent); the database change still stands
+    except RPCError as e:
+        if not needs_workflow:
+            return   # reminders check the database before sending
+        if e.status == RPCStatusCode.NOT_FOUND:
+            raise ActionError("इसके reminder बंद हो चुके हैं — काग़ज़ फिर से दिखाकर नया जोड़िए।") from None
+        raise ActionError("अभी सेव नहीं हो पाया — थोड़ी देर में फिर कोशिश कीजिए।") from None
 
 
 def _event(now: datetime, role: str, event: str, detail=None) -> dict:
@@ -90,9 +96,9 @@ async def snooze(store, temporal, ob: dict, until: str, role: str, now: datetime
         raise ActionError("बीती हुई तारीख़ पर याद नहीं दिला सकते — आगे की तारीख़ चुनिए।")
     if ob["status"] != "active":
         raise ActionError("यह काम पहले ही पूरा हो चुका है।")
+    await _signal(temporal, ob["workflow_id"], ObligationWorkflow.snooze, d.isoformat(), needs_workflow=True)
     await store.set_obligation(ob["_id"], {"snoozed_until": d.isoformat(), "snoozed_at": now},
                                _event(now, role, "snooze", d.isoformat()))
-    await _signal(temporal, ob["workflow_id"], ObligationWorkflow.snooze, d.isoformat())
 
 
 async def update_obligation(store, temporal, ob: dict, a: dict, role: str, now: datetime) -> None:
@@ -104,14 +110,20 @@ async def update_obligation(store, temporal, ob: dict, a: dict, role: str, now: 
         fields["amount_inr"] = amount
     if a.get("due_date"):
         try:
-            fields["due_date"] = date.fromisoformat(a["due_date"]).isoformat()
+            due = date.fromisoformat(a["due_date"])
         except ValueError:
             raise ActionError("तारीख़ समझ नहीं आई।") from None
+        today = today_ist(now)
+        if not today - timedelta(days=60) <= due <= today + timedelta(days=730):   # same window as create
+            raise ActionError("यह तारीख़ सही नहीं लग रही।")
+        fields["due_date"] = due.isoformat()
     if not fields:
         raise ActionError("कुछ बदला नहीं।")
-    await store.set_obligation(ob["_id"], fields, _event(now, role, "update", fields))
     if fields.get("due_date") and fields["due_date"] != ob["due_date"]:
-        await _signal(temporal, ob["workflow_id"], ObligationWorkflow.update_due, fields["due_date"])
+        await _signal(temporal, ob["workflow_id"], ObligationWorkflow.update_due, fields["due_date"],
+                      needs_workflow=True)
+        fields["due_changed_at"] = now
+    await store.set_obligation(ob["_id"], fields, _event(now, role, "update", fields))
 
 
 async def execute_actions(store, temporal, hh: dict, actions: list[dict], role: str, now: datetime,

@@ -86,7 +86,8 @@ def test_demo_new_due_date_restarts_the_cadence():
 
 
 def test_next_point_follows_a_changed_due_date():
+    changed = T0 + timedelta(seconds=100)
     ob = {"status": "active", "due_date": "2026-12-16", "remind_offsets_days": [30, 7, 1], "created_at": T0,
-          "escalate": True, "snoozed_until": None, "snoozed_at": None,
-          "due_changed_at": datetime(2026, 11, 20, 10, 0, tzinfo=UTC)}
-    assert next_point(ob, "real", datetime(2026, 11, 20, 11, 0, tzinfo=UTC)).id == "d7:2026-12-16"
+          "escalate": True, "snoozed_until": None, "snoozed_at": None, "due_changed_at": changed}
+    p = next_point(ob, "demo", changed + timedelta(seconds=1))
+    assert (p.id, p.at) == ("d30:2026-12-16", changed + timedelta(seconds=30))

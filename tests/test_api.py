@@ -228,3 +228,21 @@ def test_new_households_do_not_get_around_the_global_ai_cap(ctx):
     other = {"Authorization": f"Bearer {ctx.c.post('/api/households').json()['token']}"}
     assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=other).status_code == 200
     assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=other).status_code == 429
+
+
+def test_one_address_cannot_make_endless_households(ctx):
+    ctx.app.state.household_ip_limiter = HourlyLimiter(limit=1)
+    assert ctx.c.post("/api/households").status_code == 200
+    assert ctx.c.post("/api/households").status_code == 429
+    assert ctx.c.post("/api/households", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 200
+
+
+def test_one_address_cannot_use_up_the_global_ai_cap(ctx):
+    # Without this, ~14 households from one machine spend the global 200/hour and lock out every visitor.
+    ctx.app.state.ip_limiter = HourlyLimiter(limit=2)
+    other = {"Authorization": f"Bearer {ctx.c.post('/api/households').json()['token']}"}
+    assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}).status_code == 200
+    assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=other).status_code == 200
+    assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=other).status_code == 429
+    elsewhere = {**other, "X-Forwarded-For": "203.0.113.9, 10.0.0.1"}
+    assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=elsewhere).status_code == 200

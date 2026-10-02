@@ -18,6 +18,9 @@ with workflow.unsafe.imports_passed_through():
 NOTIFY_RETRY = RetryPolicy(initial_interval=timedelta(seconds=10), backoff_coefficient=2.0,
                            maximum_interval=timedelta(minutes=15), maximum_attempts=0)
 GIVE_UP = {"real": timedelta(hours=24), "demo": timedelta(minutes=10)}
+# After its last point the workflow stays open this long, so a snooze or a new date (for example the son
+# snoozing after he's been told) still lands.
+KEEP_OPEN = {"real": timedelta(days=30), "demo": timedelta(minutes=10)}
 
 
 @dataclass
@@ -40,6 +43,7 @@ class ObligationWorkflow:
         self._changed = False
         self._snooze_until: date | None = None
         self._snoozed_at = None
+        self._due_changed_at = None
         self._sent: list[str] = []
         self._failed: list[str] = []
 
@@ -50,13 +54,13 @@ class ObligationWorkflow:
         while True:
             points = plan_points(due=self._due, offsets=a.offsets, schedule=a.schedule, started_at=started,
                                  gap_seconds=a.gap_seconds, escalate=a.escalate,
-                                 snooze_until=self._snooze_until, snoozed_at=self._snoozed_at)
+                                 snooze_until=self._snooze_until, snoozed_at=self._snoozed_at,
+                                 changed_at=self._due_changed_at)
             pending = [p for p in points if p.id not in self._sent and p.id not in self._failed]
-            if not pending:
-                return "finished"
-            point = pending[0]
+            point = pending[0] if pending else None
             self._changed = False
-            delay = point.at - workflow.now()
+            wake = point.at if point else max(p.at for p in points) + KEEP_OPEN[a.schedule]
+            delay = wake - workflow.now()
             if delay > timedelta(0):
                 try:
                     await workflow.wait_condition(lambda: self._done or self._cancelled or self._changed,
@@ -69,6 +73,8 @@ class ObligationWorkflow:
                 return "cancelled"
             if self._changed:
                 continue
+            if point is None:
+                return "finished"
             method = (ReminderActivities.send_escalation if point.kind == "escalation"
                       else ReminderActivities.send_reminder)
             try:
@@ -104,4 +110,5 @@ class ObligationWorkflow:
     @workflow.signal
     def update_due(self, due_date: str) -> None:
         self._due = date.fromisoformat(due_date)
+        self._due_changed_at = workflow.now()
         self._changed = True

@@ -151,7 +151,7 @@ def validate_plan(actions: list[dict], obligations_by_id: dict[str, dict], today
 
 def readback(actions: list[dict]) -> str:
     parts: list[str] = []
-    changes = False
+    changes = no_date = False
     for a in actions:
         tool = a["tool"]
         name = a.get("title_hi") or a.get("title") or "काग़ज़"
@@ -162,6 +162,8 @@ def readback(actions: list[dict]) -> str:
                 s += f", {inr(a['amount_inr'])}"
             if a.get("due_date"):
                 s += f", आख़िरी तारीख़ {hindi_date(date.fromisoformat(a['due_date']))}"
+            else:
+                no_date = True
             parts.append(s + "।")
         elif tool == "mark_done":
             changes = True
@@ -182,6 +184,8 @@ def readback(actions: list[dict]) -> str:
         elif tool == "clarify":
             parts.append(a["question_hi"])
     text = " ".join(parts)
+    if no_date:   # hard rule 1: never guess a date; ask for it
+        return f"{text} तारीख़ नहीं मिली — काग़ज़ पर देखकर बताइए।"
     return f"{text} सही है?" if changes else text
 
 

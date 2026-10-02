@@ -43,7 +43,9 @@ async def test_missing_date_stays_null():
     raw = {**MOTOR, "due_date": None, "evidence_due_date": None}
     card = await read_paper(FakeGemma(raw), b"img", "image/jpeg", TODAY)
     assert card["actions"][0]["due_date"] is None and "due_date" in card["actions"][0]["needs_check"]
-    assert "तारीख़" not in card["readback_hi"]
+    # Spec hard rule 1: never guess a date; ask for it out loud instead of "is this right?"
+    assert "आख़िरी तारीख़" not in card["readback_hi"]
+    assert card["readback_hi"].endswith("तारीख़ नहीं मिली — काग़ज़ पर देखकर बताइए।")
 
 
 async def test_consequence_without_evidence_is_dropped():

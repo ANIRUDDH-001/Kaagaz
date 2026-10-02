@@ -77,8 +77,17 @@ def _public_notification(n: dict) -> dict:
             "text_en": n.get("text_en"), "created_at": n["created_at"].isoformat(), "read": n.get("read_at") is not None}
 
 
+def client_ip(request: Request) -> str:
+    # First X-Forwarded-For hop (Render's proxy sets it). A client can forge it, but that only buys what having
+    # no per-address limit gave; the global caps still hold. The last hop could lump every visitor together.
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
 @router.post("/households")
 async def create_household(request: Request):
+    if not request.app.state.household_ip_limiter.allow(client_ip(request)):
+        raise HTTPException(429, "बहुत सारे नए खाते बन गए — थोड़ी देर बाद आइए।")
     token, hh = await request.app.state.store.create_household(request.app.state.settings.app_mode, now_utc())
     return {"token": token, "household_id": hh["_id"], "mode": hh["mode"],
             "expires_at": hh["expires_at"].isoformat() if hh["expires_at"] else None}
@@ -119,8 +128,9 @@ async def create_input(request: Request, kind: str = Form(...), role: str = Form
         if not text or len(text) > MAX_TEXT:
             raise HTTPException(422, "text must be 1-500 characters")
     s = request.app.state
-    # Households are free to create, so the per-household limit alone can be dodged: a global cap too.
-    if hh["mode"] == "demo" and not (s.limiter.allow(hh["_id"]) and s.global_limiter.allow("all")):
+    # Households are free to create, so the per-household limit alone can be dodged: per-address and global caps too.
+    if hh["mode"] == "demo" and not (s.limiter.allow(hh["_id"]) and s.ip_limiter.allow(client_ip(request))
+                                     and s.global_limiter.allow("all")):
         raise HTTPException(429, LIMIT_MESSAGE)
     p = s.inputs.create(hh["_id"], role, kind, data, mime, text)
     await s.temporal.start_workflow(ProcessInputWorkflow.run, p.id, id=f"input-{p.id}", task_queue=s.ai_queue,

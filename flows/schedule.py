@@ -19,18 +19,20 @@ class Point:
 
 def plan_points(*, due: date, offsets: list[int], schedule: str, started_at: datetime,
                 gap_seconds: int = 30, escalate: bool = True, snooze_until: date | None = None,
-                snoozed_at: datetime | None = None) -> list[Point]:
+                snoozed_at: datetime | None = None, changed_at: datetime | None = None) -> list[Point]:
+    # A new due date plans from when it changed, so reminders the old date never reached don't all fire at once.
+    anchor = changed_at or started_at
     days = sorted({int(o) for o in offsets if int(o) > 0}, reverse=True) or [1]
     if schedule == "demo":
         gap = timedelta(seconds=gap_seconds)
-        base = [Point(f"d{o}:{due}", "reminder", f"d{o}", started_at + gap * (i + 1))
+        base = [Point(f"d{o}:{due}", "reminder", f"d{o}", anchor + gap * (i + 1))
                 for i, o in enumerate(days)]
         escalation_delay = gap * 3
         snooze_at = snoozed_at + gap if snooze_until and snoozed_at else None
     elif schedule == "real":
         base = [Point(f"d{o}:{due}", "reminder", f"d{o}", at_ist(due - timedelta(days=o), REMINDER_HOUR_IST))
                 for o in days]
-        base = [p for p in base if p.at > started_at] or [Point(f"now:{due}", "reminder", "now", started_at)]
+        base = [p for p in base if p.at > anchor] or [Point(f"now:{due}", "reminder", "now", anchor)]
         escalation_delay = REAL_ESCALATION_DELAY
         snooze_at = at_ist(snooze_until, REMINDER_HOUR_IST) if snooze_until else None
     else:
@@ -54,5 +56,6 @@ def next_point(ob: dict, mode: str, now: datetime, gap_seconds: int = 30) -> Poi
         due=date.fromisoformat(ob["due_date"]), offsets=ob["remind_offsets_days"],
         schedule="demo" if mode == "demo" else "real", started_at=ob["created_at"],
         gap_seconds=gap_seconds, escalate=ob.get("escalate", True),
-        snooze_until=date.fromisoformat(snooze) if snooze else None, snoozed_at=ob.get("snoozed_at"))
+        snooze_until=date.fromisoformat(snooze) if snooze else None, snoozed_at=ob.get("snoozed_at"),
+        changed_at=ob.get("due_changed_at"))
     return next((p for p in points if p.at > now), None)

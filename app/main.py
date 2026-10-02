@@ -40,6 +40,8 @@ def create_app(*, store=None, temporal=None, push=None, gemma=None, stt=None, tt
         app.state.ai_queue = ai_task_queue()
         app.state.limiter = HourlyLimiter(limit=15)              # Gemma calls per household
         app.state.global_limiter = HourlyLimiter(limit=200)      # Gemma calls, all demo households
+        app.state.ip_limiter = HourlyLimiter(limit=30)           # Gemma calls per address
+        app.state.household_ip_limiter = HourlyLimiter(limit=10) # new households per address
         app.state.tts_limiter = HourlyLimiter(limit=40)          # server voice per household
         app.state.tts_global_limiter = HourlyLimiter(limit=200)  # server voice, all demo households
         app.state.tts = tts if tts is not None else make_tts(settings, app.state.store)

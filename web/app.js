@@ -19,7 +19,7 @@ const params = new URLSearchParams(location.search);
 const state = {
   token: saved.get("kaagaz.token"),
   role: ["parent", "son"].includes(params.get("role")) ? params.get("role") : saved.get("kaagaz.role") || "parent",
-  health: null, data: null, card: null, inputId: null, recorder: null, seen: new Set(), primed: false,
+  health: null, data: null, card: null, inputId: null, inputGen: 0, recorder: null, seen: new Set(), primed: false,
 };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -176,24 +176,29 @@ async function speak(text) {
 }
 
 async function sendInput(form, label) {
+  // Only the newest input may show a card: an older one finishing late would put its card on screen
+  // while "सही है" confirmed the newer input — one record mixing two papers.
+  const gen = ++state.inputGen;
+  const stale = () => gen !== state.inputGen;
   hideCard();
   status(`<div class="spin"></div><div>${label}</div>`);
   form.append("role", state.role);
   try {
     const { input_id: id } = await api("/api/inputs", { method: "POST", body: form });
-    state.inputId = id;
     const t0 = Date.now();
     for (;;) {
       await sleep(2000);
+      if (stale()) return;
       let p;
       try { p = await api(`/api/inputs/${id}`); }
       catch (e) { throw e.status === 404 ? new Error(GONE) : e; }
-      if (p.status === "ready") { status(""); showCard(p.card); return; }
+      if (stale()) return;
+      if (p.status === "ready") { status(""); state.inputId = id; showCard(p.card); return; }
       if (p.status === "failed") throw new Error(p.message || "कुछ गड़बड़ हुई — फिर से कोशिश करें।");
       if (Date.now() - t0 > 300000) throw new Error("बहुत देर लग रही है — फिर से कोशिश करें।");
     }
   } catch (e) {
-    status(`<div class="err">${esc(e.message)}</div>`);
+    if (!stale()) status(`<div class="err">${esc(e.message)}</div>`);
   }
 }
 
