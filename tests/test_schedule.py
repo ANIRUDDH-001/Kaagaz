@@ -69,3 +69,24 @@ def test_next_point_for_active_obligation():
     p = next_point(ob, "real", T0 + timedelta(days=1))
     assert p.id == "d30:2026-12-14"
     assert next_point({**ob, "status": "done"}, "real", T0) is None
+
+
+def test_real_new_due_date_skips_points_before_the_change():
+    changed = datetime(2026, 11, 20, 10, 0, tzinfo=UTC)
+    pts = plan_points(due=date(2026, 12, 16), offsets=[30, 7, 1], schedule="real", started_at=T0,
+                      changed_at=changed)
+    assert ids(pts) == ["d7:2026-12-16", "d1:2026-12-16", "escalation:2026-12-16"]
+
+
+def test_demo_new_due_date_restarts_the_cadence():
+    changed = T0 + timedelta(seconds=100)
+    pts = plan_points(due=date(2026, 12, 16), offsets=[30, 7, 1], schedule="demo", started_at=T0,
+                      changed_at=changed)
+    assert [p.at for p in pts] == [changed + timedelta(seconds=s) for s in (30, 60, 90, 180)]
+
+
+def test_next_point_follows_a_changed_due_date():
+    ob = {"status": "active", "due_date": "2026-12-16", "remind_offsets_days": [30, 7, 1], "created_at": T0,
+          "escalate": True, "snoozed_until": None, "snoozed_at": None,
+          "due_changed_at": datetime(2026, 11, 20, 10, 0, tzinfo=UTC)}
+    assert next_point(ob, "real", datetime(2026, 11, 20, 11, 0, tzinfo=UTC)).id == "d7:2026-12-16"

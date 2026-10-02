@@ -52,6 +52,8 @@ class FakeHandle:
         self.workflow_id = workflow_id
 
     async def signal(self, signal, *args):
+        if self.temporal.signal_error is not None:
+            raise self.temporal.signal_error
         self.temporal.signals.append((self.workflow_id, signal.__name__, args))
 
 
@@ -60,6 +62,7 @@ class FakeTemporal:
         self.started: list[dict] = []
         self.signals: list[tuple] = []
         self.fail_next_start = False
+        self.signal_error: Exception | None = None
 
     async def start_workflow(self, run_fn, arg, *, id: str, task_queue: str, execution_timeout=None,
                              id_reuse_policy=None):

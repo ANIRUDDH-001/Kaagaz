@@ -153,3 +153,42 @@ async def test_failed_reminder_is_not_counted_as_sent(env):
         progress = await handle.query(ObligationWorkflow.progress)
     assert progress["sent"] == [] and len(progress["failed"]) == 4
     assert await notes(store, oid) == []
+
+
+async def test_snooze_after_escalation_still_reminds(env):
+    # Flow D: the son, once told, can snooze on the parent's behalf. The workflow must still be open to hear it.
+    store, push = mock_store(), FakePush()
+    due = date.today() + timedelta(days=60)
+    hh, oid = await make(store, "demo", due)
+    async with worker(env, store, push):
+        handle = await env.client.start_workflow(
+            ObligationWorkflow.run, ObligationArgs(oid, hh["_id"], due.isoformat(), [30, 7, 1], "demo"),
+            id=f"ob-{oid}", task_queue=Q)
+        await env.sleep(timedelta(seconds=200))        # three reminders, escalation at 180 s
+        assert len(await notes(store, oid)) == 4
+        until = date.today() + timedelta(days=1)
+        await handle.signal(ObligationWorkflow.snooze, until.isoformat())
+        await env.sleep(timedelta(seconds=45))
+        got = [n["_id"] for n in await notes(store, oid)]
+        assert got[-1] == f"reminder:{oid}:snooze:{until}"
+        assert len(got) == 5                           # the escalation isn't sent again
+        assert await handle.result() == "finished"     # closes once the keep-open window ends
+
+
+async def test_new_due_date_does_not_fire_missed_reminders_at_once(env):
+    store, push = mock_store(), FakePush()
+    due = date.today() + timedelta(days=60)
+    hh, oid = await make(store, "demo", due)
+    async with worker(env, store, push):
+        handle = await env.client.start_workflow(
+            ObligationWorkflow.run, ObligationArgs(oid, hh["_id"], due.isoformat(), [30, 7, 1], "demo"),
+            id=f"ob-{oid}", task_queue=Q)
+        await env.sleep(timedelta(seconds=100))        # d30, d7, d1 sent
+        assert len(await notes(store, oid)) == 3
+        await handle.signal(ObligationWorkflow.update_due, (due + timedelta(days=2)).isoformat())
+        await env.sleep(timedelta(seconds=20))
+        assert len(await notes(store, oid)) == 3       # the new date's first reminder is a full gap away
+        await env.sleep(timedelta(seconds=20))
+        assert len(await notes(store, oid)) == 4
+        await handle.signal(ObligationWorkflow.mark_done)
+        assert await handle.result() == "done"
