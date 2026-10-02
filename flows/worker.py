@@ -10,15 +10,23 @@ from temporalio.worker import Worker
 from app.config import get_settings
 from app.db import connect_store
 from flows.activities import ReminderActivities
+from flows.ai_activities import AIActivities
 from flows.obligation_workflow import ObligationWorkflow
+from flows.process_workflow import ProcessInputWorkflow
 from flows.push import WebPushSender
-from flows.temporal import TASK_QUEUE, connect_temporal
+from flows.temporal import TASK_QUEUE, ai_task_queue, connect_temporal
 
 
 def reminder_worker(client, store, push) -> Worker:
     acts = ReminderActivities(store, push)
     return Worker(client, task_queue=TASK_QUEUE, workflows=[ObligationWorkflow],
                   activities=[acts.send_reminder, acts.send_escalation],
+                  graceful_shutdown_timeout=timedelta(seconds=30))
+
+
+def ai_worker(client, acts: AIActivities) -> Worker:
+    return Worker(client, task_queue=ai_task_queue(), workflows=[ProcessInputWorkflow],
+                  activities=[acts.transcribe, acts.understand, acts.fail],
                   graceful_shutdown_timeout=timedelta(seconds=30))
 
 
