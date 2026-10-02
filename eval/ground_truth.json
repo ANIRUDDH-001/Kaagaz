@@ -414,6 +414,212 @@
      "due_date": "2027-03-31"
     }
    ]
+  },
+  "done_electricity_hinglish": {
+   "said": "Bijli ka bill bhar diya.",
+   "expect": [
+    {
+     "tool": "mark_done",
+     "obligation_id": "ob_elec"
+    }
+   ]
+  },
+  "lic_new_amount_hinglish": {
+   "said": "LIC ka premium ab 10,400 ho gaya hai.",
+   "expect": [
+    {
+     "tool": "update_obligation",
+     "obligation_id": "ob_lic",
+     "amount_inr": 10400
+    }
+   ]
+  },
+  "school_new_date_hinglish": {
+   "said": "School fee ki last date ab 25 October ho gayi hai.",
+   "expect": [
+    {
+     "tool": "update_obligation",
+     "obligation_id": "ob_school",
+     "due_date": "2026-10-25"
+    }
+   ]
+  },
+  "snooze_parson_hindi": {
+   "said": "बिजली के बिल की याद परसों दिलाना।",
+   "expect": [
+    {
+     "tool": "snooze",
+     "obligation_id": "ob_elec",
+     "until": "2026-10-04"
+    }
+   ]
+  },
+  "snooze_monday_english": {
+   "said": "Remind me about the LIC premium next Monday.",
+   "expect": [
+    {
+     "tool": "snooze",
+     "obligation_id": "ob_lic",
+     "until": "2026-10-05"
+    }
+   ]
+  },
+  "question_school_english": {
+   "said": "How much is the school fee?",
+   "expect": [
+    {
+     "tool": "answer",
+     "used_obligation_ids": [
+      "ob_school"
+     ]
+    }
+   ]
+  },
+  "question_lic_hinglish": {
+   "said": "LIC ka premium kitna hai aur kab tak bharna hai?",
+   "expect": [
+    {
+     "tool": "answer",
+     "used_obligation_ids": [
+      "ob_lic"
+     ]
+    }
+   ]
+  },
+  "ambiguous_hinglish": {
+   "said": "Woh wala ho gaya.",
+   "expect": [
+    {
+     "tool": "clarify"
+    }
+   ]
+  },
+  "new_water_hindi": {
+   "said": "मेरा पानी का बिल 640 रुपये का है, 20 अक्टूबर तक भरना है।",
+   "expect": [
+    {
+     "tool": "create_obligation",
+     "amount_inr": 640,
+     "due_date": "2026-10-20"
+    }
+   ]
+  },
+  "new_health_english": {
+   "said": "Health insurance premium is twenty three thousand six hundred fifty, due on the fifth of November. Remind me ten days before.",
+   "expect": [
+    {
+     "tool": "create_obligation",
+     "amount_inr": 23650,
+     "due_date": "2026-11-05",
+     "remind_offsets_days": [
+      10,
+      1
+     ]
+    }
+   ]
+  },
+  "new_gas_hinglish": {
+   "said": "Gas ka bill 1214 rupaye ka hai, 12 tareekh tak bharna hai.",
+   "expect": [
+    {
+     "tool": "create_obligation",
+     "amount_inr": 1214,
+     "due_date": "2026-10-12"
+    }
+   ]
+  },
+  "new_society_english": {
+   "said": "Society maintenance of 3500 rupees is due on 10 October.",
+   "expect": [
+    {
+     "tool": "create_obligation",
+     "amount_inr": 3500,
+     "due_date": "2026-10-10"
+    }
+   ]
+  },
+  "done_two_hinglish": {
+   "said": "School fee bhi de di aur bijli ka bill bhi bhar diya.",
+   "expect": [
+    {
+     "tool": "mark_done",
+     "obligation_id": "ob_school"
+    },
+    {
+     "tool": "mark_done",
+     "obligation_id": "ob_elec"
+    }
+   ]
+  },
+  "electricity_new_amount_english": {
+   "said": "The electricity bill is now 2,400 rupees.",
+   "expect": [
+    {
+     "tool": "update_obligation",
+     "obligation_id": "ob_elec",
+     "amount_inr": 2400
+    }
+   ]
+  },
+  "snooze_tomorrow_hinglish": {
+   "said": "Kal subah yaad dila dena school fee ke baare mein.",
+   "expect": [
+    {
+     "tool": "snooze",
+     "obligation_id": "ob_school",
+     "until": "2026-10-03"
+    }
+   ]
+  },
+  "nonsense_hinglish": {
+   "said": "asdf mujhe kuch nahi pata kya bolna hai",
+   "expect": [
+    {
+     "tool": "clarify"
+    }
+   ]
+  }
+ },
+ "audio": {
+  "a_new_insurance": {
+   "case": "new_insurance_hinglish",
+   "voice": 0,
+   "text": "ये गाड़ी के इंश्योरेंस का काग़ज़ आया है। प्रीमियम अठारह हज़ार चार सौ रुपये है, और लास्ट डेट चौदह दिसंबर है। मुझे एक हफ़्ता पहले याद दिला देना, और अगर मैं भूल जाऊँ तो बेटे को बता देना।"
+  },
+  "a_done_and_snooze": {
+   "case": "done_and_snooze_hinglish",
+   "voice": 1,
+   "text": "स्कूल की फ़ीस आज जमा कर दी, रसीद भी मिल गई। और LIC वाला रिमाइंडर फ्राइडे तक आगे कर दो।"
+  },
+  "a_property_tax": {
+   "case": "property_tax_english",
+   "voice": 0,
+   "text": "The property tax notice came today. The amount is twelve thousand three hundred and fifty rupees. Pay before thirty-first March to get the five percent rebate."
+  },
+  "a_snooze_parson": {
+   "case": "snooze_parson_hindi",
+   "voice": 1,
+   "text": "बिजली के बिल की याद परसों दिलाना।"
+  },
+  "a_new_water": {
+   "case": "new_water_hindi",
+   "voice": 0,
+   "text": "मेरा पानी का बिल छह सौ चालीस रुपये का है, बीस अक्टूबर तक भरना है।"
+  },
+  "a_new_health": {
+   "case": "new_health_english",
+   "voice": 1,
+   "text": "Health insurance premium is twenty three thousand six hundred fifty, due on the fifth of November. Remind me ten days before."
+  },
+  "a_new_gas": {
+   "case": "new_gas_hinglish",
+   "voice": 0,
+   "text": "गैस का बिल बारह सौ चौदह रुपये का है, बारह तारीख़ तक भरना है।"
+  },
+  "a_done_two": {
+   "case": "done_two_hinglish",
+   "voice": 1,
+   "text": "स्कूल फ़ीस भी दे दी और बिजली का बिल भी भर दिया।"
   }
  }
 }
