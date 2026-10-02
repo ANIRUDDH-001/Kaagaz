@@ -5,7 +5,7 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(d.title || "काग़ज़ · Kaagaz", {
+  e.waitUntil(self.registration.showNotification(d.title || "Kaagaz", {
     body: d.body || "",
     tag: d.tag,
     icon: "icon.svg",

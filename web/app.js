@@ -1,15 +1,11 @@
-// Kaagaz web app: three big actions, a confirmation card, what's next, and the inbox.
+// Kaagaz web app: state and flows. Words live in i18n.js, HTML in render.js.
+import { TABLE, errorText, getLang, pick, setLang, t } from "./i18n.js";
+import * as R from "./render.js";
+
 const API = (window.KAAGAZ_API || "").replace(/\/$/, "");
 const $ = (s) => document.querySelector(s);
-
-const BANNER = {
-  demo: "SAMPLE DATA ONLY — uploads are processed by hosted AI services (Google, ElevenLabs). Do not upload real personal documents.",
-  real: "LOCAL AI MODE — photos and voice recordings are processed on this device. Only the confirmed reminder details are synced to the database.",
-};
-const LABEL = { d30: "30 दिन पहले वाला", d7: "7 दिन पहले वाला", d1: "1 दिन पहले वाला", now: "अभी", snooze: "आपकी बताई तारीख़ वाला", escalation: "बेटे को सूचना" };
-const CHANGES = ["create_obligation", "mark_done", "snooze", "update_obligation"];
-const GONE = "यह काग़ज़ या आवाज़ अब सर्वर पर नहीं है — कृपया फिर से भेजिए।";
-const NETWORK = "सर्वर से जुड़ नहीं पाए — इंटरनेट देखिए।";
+const $$ = (s) => document.querySelectorAll(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const saved = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -19,14 +15,11 @@ const params = new URLSearchParams(location.search);
 const state = {
   token: saved.get("kaagaz.token"),
   role: ["parent", "son"].includes(params.get("role")) ? params.get("role") : saved.get("kaagaz.role") || "parent",
-  health: null, data: null, card: null, inputId: null, inputGen: 0, recorder: null, seen: new Set(), primed: false,
+  health: null, data: null, card: null, inputId: null, inputGen: 0, toldSon: false,
+  progress: null,            // {kind, stage, done, error} of the input being read
+  rec: null,                 // {recorder, stream, startedAt, mode: "hold"|"tap", timer, limit}
+  seen: new Set(), primed: false, sheetReturn: null, laterUntil: null,
 };
-
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const inr = (n) => (n == null ? "" : "₹" + Math.round(n).toLocaleString("en-IN"));
-const hiDate = (iso) => (iso ? new Date(iso + "T00:00:00").toLocaleDateString("hi-IN", { day: "numeric", month: "long", year: "numeric" }) : "");
-const hiWhen = (iso) => new Date(iso).toLocaleString("hi-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function toast(text) {
   const el = $("#toast");
@@ -36,12 +29,6 @@ function toast(text) {
   toast.timer = setTimeout(() => { el.hidden = true; }, 5000);
 }
 
-function status(html) {
-  const el = $("#status");
-  el.innerHTML = html || "";
-  el.hidden = !html;
-}
-
 async function api(path, opts = {}, retried = false) {
   const headers = {};
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -49,7 +36,7 @@ async function api(path, opts = {}, retried = false) {
   if (opts.json !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(opts.json); }
   let r;
   try { r = await fetch(API + path, { method: opts.method || "GET", headers, body }); }
-  catch { throw new Error(NETWORK); }
+  catch { const e = new Error(t("network")); e.network = true; throw e; }
   if (r.status === 401 && !retried && path !== "/api/households") {
     state.token = null;
     await ensureHousehold();
@@ -58,13 +45,61 @@ async function api(path, opts = {}, retried = false) {
   if (!r.ok) {
     let d = {};
     try { d = await r.json(); } catch { /* not json */ }
-    const e = new Error(typeof d.detail === "string" ? d.detail : `HTTP ${r.status}`);
+    const e = new Error(errorText(d.detail, t("failed")));
     e.status = r.status;
+    e.detail = d.detail;
     throw e;
   }
   return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.blob();
 }
 
+// ---------- language and role ----------
+function applyLang() {
+  $$("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  $$("[data-t-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.tPlaceholder); });
+  $$("[data-t-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.tAria)));
+  $$("#lang [data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === getLang())));
+  document.title = getLang() === "hi" ? "काग़ज़ · Kaagaz" : "Kaagaz";
+  renderHello();
+  renderSpeak();
+  renderMode();
+  if (state.data) { renderItems(); renderInbox(); }
+  if (state.progress) renderSteps();
+  if (state.card) { state.card.actions = editedActions(); renderCard(); }
+}
+
+function switchLang(l) {
+  if (l === getLang()) return;
+  setLang(l);
+  applyLang();
+}
+
+function setRole(role) {
+  state.role = role;
+  saved.set("kaagaz.role", role);
+  $$("#roles [data-role]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.role === role)));
+  document.body.dataset.role = role;
+  state.primed = false;
+  renderHello();
+  if (state.health) refresh();
+}
+
+function renderHello() {
+  $("#hello").textContent = t(state.role === "son" ? "hello_son" : "hello_parent");
+  const active = (state.data?.obligations || []).filter((o) => o.status === "active").length;
+  $("#count").textContent = state.data ? t("count", active) : "";
+}
+
+function renderMode() {
+  const mode = state.health?.mode;
+  const chip = $("#mode-chip");
+  chip.hidden = !mode;
+  if (!mode) return;
+  chip.textContent = t(`mode_${mode}`);
+  chip.className = `chip ${mode}`;
+}
+
+// ---------- server ----------
 async function wake() {
   const t0 = Date.now();
   for (;;) {
@@ -73,17 +108,15 @@ async function wake() {
       if (r.ok) { state.health = await r.json(); break; }
     } catch { /* still asleep */ }
     if (Date.now() - t0 > 120000) {
-      $("#waking").innerHTML = "<div>सर्वर नहीं जागा — थोड़ी देर बाद पेज फिर खोलिए। <small>Server didn't wake; try again shortly.</small></div>";
+      $("#waking-text").dataset.t = "waking_failed";
+      $("#waking-text").textContent = t("waking_failed");
+      $(".waking-bar").hidden = true;
       return false;
     }
     await sleep(3000);
   }
-  $("#waking").hidden = true;
   document.body.classList.remove("asleep");
-  const b = $("#banner");
-  b.textContent = BANNER[state.health.mode] || "";
-  b.className = `banner ${state.health.mode}`;
-  b.hidden = false;
+  renderMode();
   return true;
 }
 
@@ -94,71 +127,40 @@ async function ensureHousehold() {
   saved.set("kaagaz.token", r.token);
 }
 
-function setRole(role) {
-  state.role = role;
-  saved.set("kaagaz.role", role);
-  document.querySelectorAll(".role").forEach((b) => b.classList.toggle("on", b.dataset.role === role));
-  document.body.dataset.role = role;
-  state.primed = false;
-  if (state.health) refresh();
-}
-
 async function refresh() {
   if (!state.token) return;
-  try {
-    state.data = await api(`/api/state?role=${state.role}`);
-  } catch (e) { console.warn(e); return; }
+  try { state.data = await api(`/api/state?role=${state.role}`); }
+  catch (e) { console.warn(e); return; }
   renderItems();
   renderInbox();
+  renderHello();
   const fresh = state.data.inbox.filter((n) => !n.read && !state.seen.has(n.id));
   state.data.inbox.forEach((n) => state.seen.add(n.id));
   if (state.primed && fresh.length) {
-    toast(`${fresh[0].kind === "escalation" ? "⚠️" : "🔔"} ${fresh[0].text_hi}`);
+    toast(pick(fresh[0], "text"));
     navigator.vibrate?.(200);
   }
   state.primed = true;
 }
 
-function renderItems() {
-  const { obligations, mode } = state.data;
-  const ul = $("#items");
-  if (!obligations.length) {
-    ul.innerHTML = `<li class="empty">अभी कुछ नहीं। ऊपर से काग़ज़ दिखाइए या बोलिए। <small>Nothing yet.</small></li>`;
-    return;
-  }
-  ul.innerHTML = obligations.map((o) => {
-    const next = o.next
-      ? `<div class="next">अगला: ${esc(LABEL[o.next.label] || o.next.label)} — ${esc(hiWhen(o.next.at))}${mode === "real" && o.next.kind === "reminder" ? " <small>(सुबह 9 से 9:30 के बीच)</small>" : ""}</div>`
-      : "";
-    const btns = o.status === "active"
-      ? `<div class="btns"><button type="button" class="primary" data-done="${o.id}">हो गया</button><button type="button" class="secondary" data-snooze="${o.id}">बाद में याद दिलाना</button></div>`
-      : "";
-    return `<li class="item ${esc(o.status)}">
-      <div class="row"><strong>${esc(o.title_hi || o.title)}</strong><span class="amt">${inr(o.amount_inr)}</span></div>
-      <div class="meta">आख़िरी तारीख़ ${esc(hiDate(o.due_date))}${o.status === "done" ? " · ✅ हो गया" : ""}</div>
-      ${next}${btns}</li>`;
-  }).join("");
-}
+function renderItems() { $("#items").innerHTML = R.items(state.data); }
 
 function renderInbox() {
-  const { inbox, unread } = state.data;
+  const { unread } = state.data;
   $("#unread").hidden = !unread;
   $("#unread").textContent = unread;
-  $("#inbox").innerHTML = inbox.length
-    ? inbox.map((n) => `<li class="note ${esc(n.kind)} ${n.read ? "read" : ""}">
-        <div>${n.kind === "escalation" ? "⚠️" : "🔔"} ${esc(n.text_hi)}</div>
-        <div class="en">${esc(n.text_en)}</div>
-        <div class="btns"><button type="button" class="secondary" data-play="${esc(n.id)}">▶ सुनिए</button>${n.read ? "" : `<button type="button" class="secondary" data-read="${esc(n.id)}">पढ़ लिया</button>`}</div>
-      </li>`).join("")
-    : `<li class="empty">${state.role === "son" ? "अभी कोई चेतावनी नहीं। <small>No alerts.</small>" : "अभी कोई reminder नहीं। <small>No reminders yet.</small>"}</li>`;
+  $("#unread").setAttribute("aria-label", t("unread", unread));
+  $("#inbox").innerHTML = R.inbox(state.data, state.role);
 }
 
+// ---------- voice out ----------
 let audio;
 async function speak(text) {
   if (!text) return;
+  const lang = getLang();
   if (state.health?.tts === "elevenlabs") {
     try {
-      const blob = await api("/api/tts", { method: "POST", json: { text } });
+      const blob = await api("/api/tts", { method: "POST", json: { text, lang } });
       audio?.pause();
       audio = new Audio(URL.createObjectURL(blob));
       await audio.play();
@@ -168,20 +170,32 @@ async function speak(text) {
   if ("speechSynthesis" in window) {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "hi-IN";
-    const v = speechSynthesis.getVoices().find((x) => x.lang?.toLowerCase().startsWith("hi"));
+    u.lang = lang === "hi" ? "hi-IN" : "en-IN";
+    const v = speechSynthesis.getVoices().find((x) => x.lang?.toLowerCase().startsWith(lang));
     if (v) u.voice = v;
     speechSynthesis.speak(u);
   }
 }
 
-async function sendInput(form, label) {
+// ---------- sending ----------
+function renderSteps() {
+  const p = state.progress;
+  const el = $("#steps");
+  el.hidden = !p;
+  if (!p) return;
+  el.innerHTML = R.steps(p.kind, p.stage, p.done)
+    + (p.error ? `<li class="err" role="alert">${R.esc(errorText(p.error, t("failed")))}</li>` : "");
+}
+
+async function sendInput(form, kind) {
   // Only the newest input may show a card: an older one finishing late would put its card on screen
-  // while "सही है" confirmed the newer input — one record mixing two papers.
+  // while "Yes, save it" confirmed the newer input — one record mixing two papers.
   const gen = ++state.inputGen;
   const stale = () => gen !== state.inputGen;
   hideCard();
-  status(`<div class="spin"></div><div>${label}</div>`);
+  state.progress = { kind, stage: "sent", done: false, error: null };
+  renderSteps();
+  $("#steps").scrollIntoView({ behavior: "smooth", block: "center" });
   form.append("role", state.role);
   try {
     const { input_id: id } = await api("/api/inputs", { method: "POST", body: form });
@@ -189,16 +203,26 @@ async function sendInput(form, label) {
     for (;;) {
       await sleep(2000);
       if (stale()) return;
-      let p;
-      try { p = await api(`/api/inputs/${id}`); }
-      catch (e) { throw e.status === 404 ? new Error(GONE) : e; }
+      const p = await api(`/api/inputs/${id}`);
       if (stale()) return;
-      if (p.status === "ready") { status(""); state.inputId = id; showCard(p.card); return; }
-      if (p.status === "failed") throw new Error(p.message || "कुछ गड़बड़ हुई — फिर से कोशिश करें।");
-      if (Date.now() - t0 > 300000) throw new Error("बहुत देर लग रही है — फिर से कोशिश करें।");
+      state.progress.stage = p.stage || state.progress.stage;
+      if (p.status === "ready") {
+        state.progress = null;
+        renderSteps();
+        state.inputId = id;
+        showCard(p.card);
+        return;
+      }
+      if (p.status === "failed") { const e = new Error(); e.detail = p.message; throw e; }
+      renderSteps();
+      if (Date.now() - t0 > 300000) { const e = new Error(); e.detail = t("too_slow"); throw e; }
     }
   } catch (e) {
-    if (!stale()) status(`<div class="err">${esc(e.message)}</div>`);
+    if (stale()) return;
+    const detail = e.network ? t("network") : e.detail ?? e.message;
+    state.progress.error = detail;
+    renderSteps();
+    toast(errorText(detail, t("failed")));
   }
 }
 
@@ -217,85 +241,107 @@ async function sendPhoto(blob) {
   const f = new FormData();
   f.append("kind", "photo");
   f.append("file", await shrink(blob), "paper.jpg");
-  await sendInput(f, "काग़ज़ पढ़ रहा हूँ… <small>Reading your paper</small>");
+  await sendInput(f, "photo");
 }
 
-async function toggleRecord() {
-  const btn = $("#btn-speak");
-  if (state.recorder) { state.recorder.stop(); return; }
+// ---------- speak button: hold to talk, or tap to start and tap to send ----------
+function renderSpeak() {
+  const r = state.rec;
+  const key = !r ? "speak" : r.mode === "tap" ? "speak_tap" : "speak_hold";
+  $("#speak-label").textContent = t(key);
+  $("#speak-sr").textContent = t(key);
+  $("#btn-speak").classList.toggle("rec", !!r);
+  $("#btn-speak").setAttribute("aria-pressed", String(!!r));
+  $("#speak-timer").hidden = !r;
+}
+
+async function startRecording(mode) {
+  if (state.rec) return;
+  state.rec = { mode, startedAt: Date.now(), starting: true };
+  renderSpeak();
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch { toast("माइक की अनुमति नहीं मिली। ❓ पूछिए में लिखकर भी बता सकते हैं।"); return; }
-  const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) => window.MediaRecorder?.isTypeSupported(t)) || "";
-  const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  catch { state.rec = null; renderSpeak(); toast(t("mic_denied")); return; }
+  const r = state.rec;
+  if (!r) { stream.getTracks().forEach((x) => x.stop()); return; }
+  const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((x) => window.MediaRecorder?.isTypeSupported(x)) || "";
+  const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
   const chunks = [];
-  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-  rec.onstop = async () => {
-    stream.getTracks().forEach((t) => t.stop());
-    clearTimeout(rec.limit);
-    state.recorder = null;
-    btn.classList.remove("rec");
-    btn.querySelector(".hi").textContent = "बोलिए";
-    btn.querySelector(".en").textContent = "Speak";
-    const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
-    if (blob.size < 1000) { toast("कुछ सुनाई नहीं दिया — फिर से बोलिए।"); return; }
+  recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = async () => {
+    stream.getTracks().forEach((x) => x.stop());
+    clearTimeout(r.limit);
+    clearInterval(r.timer);
+    state.rec = null;
+    renderSpeak();
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    if (blob.size < 1000) { toast(t("heard_nothing")); return; }
     const f = new FormData();
     f.append("kind", "voice");
-    f.append("file", blob, (rec.mimeType || "").includes("mp4") ? "voice.m4a" : "voice.webm");
-    await sendInput(f, "सुन रहा हूँ… <small>Listening</small>");
+    f.append("file", blob, (recorder.mimeType || "").includes("mp4") ? "voice.m4a" : "voice.webm");
+    await sendInput(f, "voice");
   };
-  rec.start();
-  state.recorder = rec;
-  rec.limit = setTimeout(() => { if (rec.state === "recording") rec.stop(); }, 30000);
-  btn.classList.add("rec");
-  btn.querySelector(".hi").textContent = "रोकिए";
-  btn.querySelector(".en").textContent = "Tap to stop · max 30 s";
+  recorder.start();
+  Object.assign(r, { recorder, starting: false, startedAt: Date.now() });
+  const tick = () => {
+    const s = Math.floor((Date.now() - r.startedAt) / 1000);
+    $("#speak-timer").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  tick();
+  r.timer = setInterval(tick, 250);
+  r.limit = setTimeout(() => stopRecording(), 30000);
+  if (r.releaseEarly) stopRecording();   // the finger came up while the microphone was still opening
 }
 
-function field(i, key, label, value, type, flagged, evidence) {
-  return `<label class="f ${flagged ? "flag" : ""}"><span>${label}${flagged ? " — <em>काग़ज़ पर देखकर पक्का कीजिए</em>" : ""}</span>
-    <input data-i="${i}" data-k="${key}" type="${type}" value="${esc(value ?? "")}" ${type === "number" ? 'inputmode="numeric" min="0" step="1"' : ""}>
-    ${evidence ? `<small class="ev">काग़ज़ पर: “${esc(evidence)}”</small>` : ""}</label>`;
+function stopRecording() {
+  const r = state.rec;
+  if (!r) return;
+  if (r.starting) { r.releaseEarly = true; return; }
+  if (r.recorder?.state === "recording") r.recorder.stop();
 }
 
-function actionHtml(a, i) {
-  const name = esc(a.title_hi || a.title);
-  if (a.tool === "create_obligation") {
-    const flag = (k) => (a.needs_check || []).includes(k);
-    return `<div class="act create"><h3>${name}</h3>
-      ${field(i, "title_hi", "नाम", a.title_hi || a.title, "text", false, "")}
-      ${field(i, "amount_inr", "रकम (₹)", a.amount_inr, "number", flag("amount_inr"), a.evidence_amount)}
-      ${field(i, "due_date", "आख़िरी तारीख़", a.due_date, "date", flag("due_date"), a.evidence_due_date)}
-      ${field(i, "action", "क्या करना है", a.action, "text", false, "")}
-      ${a.consequence ? `<p class="cons">न करने पर: ${esc(a.consequence)}${a.evidence_consequence ? `<small class="ev">काग़ज़ पर: “${esc(a.evidence_consequence)}”</small>` : ""}</p>` : ""}
-      <label class="check"><input type="checkbox" data-i="${i}" data-k="escalate" ${a.escalate ? "checked" : ""}> अगर मैं भूल जाऊँ तो बेटे को बताना</label>
-      <p class="plan">याद दिलाऊँगा: ${a.remind_offsets_days.map((d) => `${d} दिन पहले`).join(", ")}</p></div>`;
-  }
-  if (a.tool === "mark_done") return `<div class="act">✅ ${name} — हो गया</div>`;
-  if (a.tool === "snooze") return `<div class="act">⏰ ${name} — ${esc(hiDate(a.until))} को फिर याद दिलाऊँगा</div>`;
-  if (a.tool === "update_obligation") {
-    const bits = [a.amount_inr ? `नई रकम ${inr(a.amount_inr)}` : "", a.due_date ? `नई तारीख़ ${esc(hiDate(a.due_date))}` : ""].filter(Boolean).join(", ");
-    return `<div class="act">✏️ ${name} — ${bits}</div>`;
-  }
-  if (a.tool === "answer") return `<div class="act answer">${esc(a.text_hi)}</div>`;
-  return `<div class="act clarify">${esc(a.question_hi)}</div>`;
+function wireSpeak() {
+  const btn = $("#btn-speak");
+  let downAt = 0;
+  let startedHere = false;
+  btn.addEventListener("pointerdown", (e) => {
+    if (e.button > 0) return;
+    btn.setPointerCapture?.(e.pointerId);
+    downAt = Date.now();
+    if (state.rec) { startedHere = false; stopRecording(); return; }   // second tap sends
+    startedHere = true;
+    startRecording("hold");
+  });
+  btn.addEventListener("pointerup", () => {
+    if (!startedHere || !state.rec) return;
+    startedHere = false;
+    if (Date.now() - downAt > 600) stopRecording();                  // held: let go to send
+    else { state.rec.mode = "tap"; renderSpeak(); }                    // tapped: keep listening
+  });
+  btn.addEventListener("pointercancel", () => { if (startedHere) stopRecording(); startedHere = false; });
+  btn.addEventListener("contextmenu", (e) => e.preventDefault());
+  btn.addEventListener("keydown", (e) => {
+    if ((e.key !== "Enter" && e.key !== " ") || e.repeat) return;
+    e.preventDefault();
+    if (state.rec) stopRecording();
+    else startRecording("tap");
+  });
+}
+
+// ---------- the card ----------
+function renderCard() {
+  const el = $("#card");
+  el.innerHTML = R.card(state.card, state.data?.today, { toldSon: state.toldSon });
+  el.hidden = false;
 }
 
 function showCard(card) {
   state.card = card;
-  const changes = card.actions.some((a) => CHANGES.includes(a.tool));
-  const el = $("#card");
-  el.innerHTML = `${card.transcript ? `<p class="said">आपने कहा: “${esc(card.transcript)}”</p>` : ""}
-    ${card.summary_hi ? `<p class="summary">${esc(card.summary_hi)}</p>` : ""}
-    ${card.actions.map(actionHtml).join("")}
-    <div class="btns">
-      ${changes ? '<button type="button" id="c-ok" class="primary">सही है ✓</button><button type="button" id="c-edit" class="secondary">बदलें</button>' : ""}
-      <button type="button" id="c-play" class="secondary">▶ फिर सुनिए</button>
-      <button type="button" id="c-no" class="secondary">${changes ? "रद्द" : "ठीक है"}</button>
-    </div>`;
-  el.hidden = false;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
-  speak(card.readback_hi);
+  state.toldSon = false;
+  renderCard();
+  $("#card").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#card").focus({ preventScroll: true });
+  speak(pick(card, "readback"));
 }
 
 function hideCard() {
@@ -303,32 +349,100 @@ function hideCard() {
   state.card = null;
 }
 
-function collectActions() {
+function editedActions() {
   const acts = structuredClone(state.card.actions);
-  document.querySelectorAll("#card [data-k]").forEach((inp) => {
+  $$("#card [data-k]").forEach((inp) => {
     const a = acts[Number(inp.dataset.i)];
     const k = inp.dataset.k;
     if (k === "escalate") a.escalate = inp.checked;
     else if (k === "amount_inr") a.amount_inr = inp.value === "" ? null : Number(inp.value);
     else a[k] = inp.value.trim() || null;
   });
-  return acts.filter((a) => CHANGES.includes(a.tool));
+  return acts;
 }
 
 async function confirmCard() {
   const btn = $("#c-ok");
   if (btn) btn.disabled = true;   // one tap, one save (the server also guards against repeats)
   try {
-    await api(`/api/inputs/${state.inputId}/confirm`, { method: "POST", json: { actions: collectActions(), role: state.role } });
+    const actions = editedActions().filter((a) => R.CHANGES.includes(a.tool));
+    const { results } = await api(`/api/inputs/${state.inputId}/confirm`, { method: "POST", json: { actions, role: state.role } });
+    $("#card").classList.add("thunk");
+    await sleep(320);
+    $("#card").classList.remove("thunk");
     hideCard();
-    toast("सेव हो गया — मैं याद दिलाऊँगा ✓");
+    toast(t("saved"));
     refresh();
+    const offer = (results || []).find((x) => x.repeat_offer)?.repeat_offer;
+    if (offer) openSheet(R.repeatSheet(offer));
   } catch (e) {
     if (btn) btn.disabled = false;
-    toast(e.status === 404 ? GONE : e.message);
+    toast(e.message);
   }
 }
 
+async function warnSon() {
+  const btn = $("#c-son");
+  if (btn) btn.disabled = true;
+  try {
+    await api(`/api/inputs/${state.inputId}/warn-son`, { method: "POST" });
+    state.toldSon = true;
+    if (btn) btn.textContent = t("told_son");
+    toast(t("told_son"));
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    toast(e.message);
+  }
+}
+
+// ---------- sheets ----------
+function openSheet(html) {
+  const sheet = $("#sheet");
+  state.sheetReturn = document.activeElement;
+  state.laterUntil = null;
+  sheet.querySelector(".sheet-panel").innerHTML = html;
+  sheet.hidden = false;
+  sheet.querySelector(".sheet-panel button:not(.sheet-x)")?.focus();
+}
+
+function closeSheet() {
+  const sheet = $("#sheet");
+  if (sheet.hidden) return;
+  sheet.hidden = true;
+  state.sheetReturn?.focus?.();
+}
+
+async function onSheetClick(e) {
+  const b = e.target.closest("button,[data-close]");
+  if (!b) return;
+  if (b.hasAttribute("data-close")) { closeSheet(); return; }
+  try {
+    if (b.dataset.until) {
+      state.laterUntil = b.dataset.until;
+      $$("#sheet .chip-btn").forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+      $("#later-date").value = "";
+    } else if (b.dataset.laterOk) {
+      const until = $("#later-date").value || state.laterUntil;
+      if (!until) { toast(t("pick_date")); return; }
+      b.disabled = true;
+      await api(`/api/obligations/${b.dataset.laterOk}/snooze`, { method: "POST", json: { until, role: state.role } });
+      closeSheet();
+      toast(t("snoozed", R.dateLong(until)));
+      refresh();
+    } else if (b.dataset.repeat) {
+      b.disabled = true;
+      const r = await api(`/api/obligations/${b.dataset.repeat}/repeat`, { method: "POST", json: { role: state.role } });
+      closeSheet();
+      toast(t("repeat_saved", R.dateLong(r.due_date)));
+      refresh();
+    }
+  } catch (err) {
+    b.disabled = false;
+    toast(err.message);
+  }
+}
+
+// ---------- push ----------
 function b64ToBytes(b64) {
   const pad = "=".repeat((4 - (b64.length % 4)) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
@@ -336,27 +450,32 @@ function b64ToBytes(b64) {
 }
 
 async function enablePush() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    toast("इस ब्राउज़र में फ़ोन सूचना नहीं चलती — सब कुछ यहीं inbox में दिखेगा। (iPhone: पहले Home Screen पर जोड़ें)");
-    return;
-  }
-  if (!state.health?.push_key) { toast("फ़ोन सूचना अभी उपलब्ध नहीं — inbox में सब दिखेगा।"); return; }
-  if ((await Notification.requestPermission()) !== "granted") { toast("अनुमति नहीं मिली — inbox में सब दिखता रहेगा।"); return; }
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) { toast(t("push_unsupported")); return; }
+  if (!state.health?.push_key) { toast(t("push_unavailable")); return; }
+  if ((await Notification.requestPermission()) !== "granted") { toast(t("push_denied")); return; }
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = (await reg.pushManager.getSubscription())
       || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(state.health.push_key) }));
-    await api("/api/push/subscribe", { method: "POST", json: { role: state.role, subscription: sub.toJSON() } });
-    toast(state.role === "son" ? "बेटे के फ़ोन पर सूचना चालू ✓" : "पापा के फ़ोन पर सूचना चालू ✓");
-  } catch (e) { toast(e.message || "सूचना चालू नहीं हो पाई।"); }
+    await api("/api/push/subscribe", { method: "POST", json: { role: state.role, subscription: sub.toJSON(), lang: getLang() } });
+    toast(t(state.role === "son" ? "push_done_son" : "push_done_parent"));
+  } catch (e) { toast(e.message || t("push_unavailable")); }
 }
 
+// ---------- wiring ----------
 function wire() {
-  document.querySelectorAll(".role").forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
-  $("#btn-speak").addEventListener("click", toggleRecord);
+  $$("#lang [data-lang]").forEach((b) => b.addEventListener("click", () => switchLang(b.dataset.lang)));
+  $$("#roles [data-role]").forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
+  $("#intro-close").addEventListener("click", () => { $("#intro").hidden = true; saved.set("kaagaz.intro", "1"); });
+  wireSpeak();
   $("#btn-scan").addEventListener("click", () => $("#file").click());
   $("#file").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) sendPhoto(f); });
-  $("#btn-ask").addEventListener("click", () => { $("#ask-box").hidden = false; $("#ask-text").focus(); });
+  $("#btn-type").addEventListener("click", () => {
+    const box = $("#ask-box");
+    box.hidden = !box.hidden;
+    $("#btn-type").setAttribute("aria-expanded", String(!box.hidden));
+    if (!box.hidden) $("#ask-text").focus();
+  });
   $("#ask-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = $("#ask-text").value.trim();
@@ -365,52 +484,62 @@ function wire() {
     const f = new FormData();
     f.append("kind", "text");
     f.append("text", text);
-    sendInput(f, "सोच रहा हूँ… <small>Thinking</small>");
+    sendInput(f, "text");
   });
-  document.querySelectorAll(".sample").forEach((b) => b.addEventListener("click", async () => {
-    const r = await fetch(`samples/${b.dataset.sample}.jpg`);
-    sendPhoto(await r.blob());
+  $$("#samples [data-sample]").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      const r = await fetch(`samples/${b.dataset.sample}.jpg`);
+      if (!r.ok) throw new Error();
+      await sendPhoto(await r.blob());
+    } catch { toast(t("network")); }
   }));
   $("#card").addEventListener("click", (e) => {
-    const id = e.target.id;
+    const id = e.target.closest("button")?.id;
     if (id === "c-ok") confirmCard();
-    else if (id === "c-edit") $("#card input")?.focus();
-    else if (id === "c-play") speak(state.card?.readback_hi);
+    else if (id === "c-edit") $("#card input:not([type=checkbox])")?.focus();
+    else if (id === "c-play") speak(pick(state.card, "readback"));
+    else if (id === "c-son") warnSon();
     else if (id === "c-no") hideCard();
   });
   $("#items").addEventListener("click", async (e) => {
-    const t = e.target;
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.later) { openSheet(R.laterSheet(b.dataset.later, state.data.today)); return; }
+    if (!b.dataset.done) return;
+    b.disabled = true;
     try {
-      if (t.dataset.done) {
-        await api(`/api/obligations/${t.dataset.done}/done`, { method: "POST", json: { role: state.role } });
-        toast("बहुत बढ़िया — हो गया ✓");
-        refresh();
-      } else if (t.dataset.snooze) {
-        t.closest(".btns").innerHTML = `<input type="date" class="snooze-date" min="${state.data.today}" aria-label="किस तारीख़ को"><button type="button" class="primary" data-snooze-ok="${t.dataset.snooze}">ठीक है</button>`;
-      } else if (t.dataset.snoozeOk) {
-        const until = t.parentElement.querySelector(".snooze-date").value;
-        if (!until) { toast("तारीख़ चुनिए।"); return; }
-        await api(`/api/obligations/${t.dataset.snoozeOk}/snooze`, { method: "POST", json: { until, role: state.role } });
-        toast(`${hiDate(until)} को फिर याद दिलाऊँगा ✓`);
-        refresh();
-      }
-    } catch (err) { toast(err.message); }
+      const r = await api(`/api/obligations/${b.dataset.done}/done`, { method: "POST", json: { role: state.role } });
+      toast(t("done_toast"));
+      await refresh();
+      if (r.repeat_offer) openSheet(R.repeatSheet(r.repeat_offer));
+    } catch (err) { b.disabled = false; toast(err.message); }
   });
   $("#inbox").addEventListener("click", async (e) => {
-    const t = e.target;
-    const note = state.data?.inbox.find((n) => n.id === (t.dataset.play || t.dataset.read));
-    if (t.dataset.play && note) speak(note.text_hi);
-    if (t.dataset.read || t.dataset.play) {
-      try { await api(`/api/notifications/${encodeURIComponent(note.id)}/read`, { method: "POST" }); refresh(); }
-      catch (err) { console.warn(err); }
-    }
+    const b = e.target.closest("button");
+    if (!b) return;
+    const note = state.data?.inbox.find((n) => n.id === (b.dataset.play || b.dataset.read));
+    if (!note) return;
+    if (b.dataset.play) speak(pick(note, "text"));
+    try { await api(`/api/notifications/${encodeURIComponent(note.id)}/read`, { method: "POST" }); refresh(); }
+    catch (err) { console.warn(err); }
   });
   $("#btn-push").addEventListener("click", enablePush);
+  $("#sheet").addEventListener("click", onSheetClick);
+  $("#sheet").addEventListener("change", (e) => {
+    if (e.target.id !== "later-date") return;
+    state.laterUntil = null;
+    $$("#sheet .chip-btn").forEach((c) => c.setAttribute("aria-pressed", "false"));
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 }
 
 async function init() {
+  if (["localhost", "127.0.0.1"].includes(location.hostname)) window.__i18n = { ...TABLE, errorText };
+  setLang(getLang());
   wire();
-  document.querySelectorAll(".role").forEach((b) => b.classList.toggle("on", b.dataset.role === state.role));
+  setRole(state.role);
+  $("#intro").hidden = saved.get("kaagaz.intro") === "1";
+  applyLang();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   if (!(await wake())) return;
   try { await ensureHousehold(); } catch (e) { toast(e.message); return; }
