@@ -124,3 +124,11 @@ def test_confirm_keeps_user_choices():
 def test_readback_for_update():
     assert readback([{"tool": "update_obligation", "title_hi": "LIC प्रीमियम", "amount_inr": 9900,
                       "due_date": None}]) == "LIC प्रीमियम — नई रकम ₹9,900। सही है?"
+
+
+def test_plan_schema_requires_every_field():
+    # Ollama decodes against the schema: an optional field is one a small model may skip. E4B left out
+    # amount_inr and due_date for a spoken new item until every field was required (nullable).
+    from ai.prompts import PLAN_SCHEMA
+    item = PLAN_SCHEMA["properties"]["actions"]["items"]
+    assert set(item["required"]) == set(item["properties"])

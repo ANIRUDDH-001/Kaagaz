@@ -52,7 +52,9 @@ PLAN_SCHEMA = {
                     "text_hi": _S,
                     "question_hi": _S,
                 },
-                "required": ["tool"],
+                "required": ["tool", "obligation_id", "title", "title_hi", "category", "amount_inr", "due_date",
+                             "action", "consequence", "evidence", "remind_before_days", "escalate", "until",
+                             "text_hi", "question_hi"],   # all: Ollama lets a model skip optional fields
             },
         }
     },
