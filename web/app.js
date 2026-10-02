@@ -6,6 +6,7 @@ const API = (window.KAAGAZ_API || "").replace(/\/$/, "");
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const both = (key) => ({ code: key, en: TABLE.en[key], hi: TABLE.hi[key] });   // stays right if the language changes
 
 const saved = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -215,11 +216,11 @@ async function sendInput(form, kind) {
       }
       if (p.status === "failed") { const e = new Error(); e.detail = p.message; throw e; }
       renderSteps();
-      if (Date.now() - t0 > 300000) { const e = new Error(); e.detail = t("too_slow"); throw e; }
+      if (Date.now() - t0 > 300000) { const e = new Error(); e.detail = both("too_slow"); throw e; }
     }
   } catch (e) {
     if (stale()) return;
-    const detail = e.network ? t("network") : e.detail ?? e.message;
+    const detail = e.network ? both("network") : e.detail ?? e.message;
     state.progress.error = detail;
     renderSteps();
     toast(errorText(detail, t("failed")));
