@@ -73,3 +73,13 @@ async def test_stale_claim_is_retried_after_lease():
     assert await deliver(store, push, n, NOW + timedelta(seconds=30)) == "already-handled"
     assert await deliver(store, push, n, NOW + timedelta(seconds=61)) == "sent"
     assert len(push.calls) == 2
+
+
+async def test_each_phone_gets_the_text_in_its_language():
+    store, hh, n = await setup(with_sub=False)
+    await store.add_push(hh["_id"], "parent", {**SUB, "lang": "en"})
+    await store.add_push(hh["_id"], "parent", {"endpoint": "https://push.example/2", "keys": SUB["keys"], "lang": "hi"})
+    push = FakePush()
+    await deliver(store, push, n, NOW)
+    assert sorted((e, p["body"]) for e, p, _ in push.calls) == [("https://push.example/1", "hello"),
+                                                                 ("https://push.example/2", "नमस्ते")]

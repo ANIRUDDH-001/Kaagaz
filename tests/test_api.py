@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.main import create_app
 from app.ratelimit import HourlyLimiter
 from flows.temporal import PROCESS_TIMEOUT
-from tests.fakes import FakePush, FakeTemporal, mock_store
+from tests.fakes import FakePush, FakeTemporal, FakeTTS, mock_store
 
 DUE = (date.today() + timedelta(days=70)).isoformat()
 
@@ -68,7 +68,7 @@ def test_text_input_starts_processing_on_this_process_queue(ctx):
 def test_photo_over_8mb_is_rejected(ctx):
     big = b"0" * (8 * 1024 * 1024 + 1)
     r = ctx.c.post("/api/inputs", data={"kind": "photo"}, files={"file": ("big.jpg", big, "image/jpeg")})
-    assert r.status_code == 413 and "8 MB" in r.json()["detail"]
+    assert r.status_code == 413 and "8 MB" in r.json()["detail"]["en"] and r.json()["detail"]["code"] == "file_too_big"
 
 
 def test_bad_kind_and_empty_text_are_rejected(ctx):
@@ -83,7 +83,7 @@ def test_demo_households_get_15_ai_calls_an_hour(ctx):
 
 def test_unknown_or_foreign_input_is_404_with_send_again(ctx):
     r = ctx.c.get("/api/inputs/nope")
-    assert r.status_code == 404 and "फिर से भेजिए" in r.json()["detail"]
+    assert r.status_code == 404 and "फिर से भेजिए" in r.json()["detail"]["hi"]
     other = ready_input(ctx, hid="someone-else")
     assert ctx.c.get(f"/api/inputs/{other.id}").status_code == 404
 
@@ -154,7 +154,7 @@ def test_confirm_retry_after_a_crash_does_not_duplicate(ctx):
 def test_confirm_without_date_is_rejected(ctx):
     p = ready_input(ctx, card(due=None))
     r = ctx.c.post(f"/api/inputs/{p.id}/confirm", json={"actions": p.card["actions"], "role": "parent"})
-    assert r.status_code == 422 and "तारीख़" in r.json()["detail"]
+    assert r.status_code == 422 and "तारीख़" in r.json()["detail"]["hi"]
 
 
 def test_confirm_requires_a_ready_input(ctx):
@@ -184,7 +184,9 @@ def test_push_subscription(ctx):
     sub = {"endpoint": "https://push.example/1", "keys": {"p256dh": "a", "auth": "b"}}
     assert ctx.c.post("/api/push/subscribe", json={"role": "son", "subscription": sub}).status_code == 200
     hh = asyncio.run(ctx.store.get_household(ctx.hid))
-    assert hh["members"]["son"]["push"] == [sub]
+    assert hh["members"]["son"]["push"] == [{**sub, "lang": "hi"}]     # no language given: Hindi
+    ctx.c.post("/api/push/subscribe", json={"role": "son", "subscription": sub, "lang": "en"})
+    assert asyncio.run(ctx.store.get_household(ctx.hid))["members"]["son"]["push"] == [{**sub, "lang": "en"}]
     bad = ctx.c.post("/api/push/subscribe", json={"role": "son", "subscription": {"keys": {}}})
     assert bad.status_code == 422
 
@@ -208,11 +210,6 @@ def test_bad_role_is_rejected(ctx):
 
 def test_server_voice_off_in_browser_mode(ctx):
     assert ctx.c.post("/api/tts", json={"text": "नमस्ते"}).status_code == 404
-
-
-class FakeTTS:
-    async def synthesize(self, text: str) -> bytes:
-        return b"mp3"
 
 
 def test_server_voice_is_rate_limited(ctx):
@@ -246,3 +243,76 @@ def test_one_address_cannot_use_up_the_global_ai_cap(ctx):
     assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=other).status_code == 429
     elsewhere = {**other, "X-Forwarded-For": "203.0.113.9, 10.0.0.1"}
     assert ctx.c.post("/api/inputs", data={"kind": "text", "text": "q"}, headers=elsewhere).status_code == 200
+
+
+def test_tts_speaks_in_the_asked_language(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_MODE", "demo")
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    tts = FakeTTS()
+    app = create_app(store=mock_store(), temporal=FakeTemporal(), push=FakePush(), tts=tts, start_workers=False)
+    with TestClient(app) as c:
+        c.headers["Authorization"] = f"Bearer {c.post('/api/households').json()['token']}"
+        assert c.post("/api/tts", json={"text": "Is that right?", "lang": "en"}).status_code == 200
+        assert c.post("/api/tts", json={"text": "सही है?"}).status_code == 200
+        assert c.post("/api/tts", json={"text": "x", "lang": "fr"}).status_code == 422
+    assert tts.calls == [("Is that right?", "en"), ("सही है?", "hi")]
+
+
+def test_failed_input_message_comes_in_both_languages(ctx):
+    p = ctx.app.state.inputs.create(ctx.hid, "parent", "text", text="x")
+    p.status, p.error = "failed", "Busy"
+    m = ctx.c.get(f"/api/inputs/{p.id}").json()["message"]
+    assert m == {"code": "busy", "en": "The AI is busy right now. Please try again in a little while.",
+                 "hi": "AI अभी व्यस्त है — थोड़ी देर में फिर कोशिश करें।"}
+
+
+def scam_card():
+    c = card()
+    c["scam"] = {"level": "warning", "signs": [{"sign": "personal_payment", "evidence": "pay to x@ybl", "strong": True,
+                                                "en": "Asks you to pay a personal UPI ID, number or account",
+                                                "hi": "किसी निजी UPI, नंबर या खाते में पैसे माँगता है"}]}
+    c["actions"][0]["scam"] = c["scam"]
+    return c
+
+
+def test_warn_son_puts_one_warning_in_the_sons_inbox(ctx):
+    p = ready_input(ctx, scam_card())
+    assert ctx.c.post(f"/api/inputs/{p.id}/warn-son").status_code == 200
+    assert ctx.c.post(f"/api/inputs/{p.id}/warn-son").status_code == 200    # a second tap adds nothing
+    inbox = ctx.c.get("/api/state?role=son").json()["inbox"]
+    assert [n["kind"] for n in inbox] == ["scam_warning"]
+    assert "suspicious" in inbox[0]["text_en"] and "personal UPI" in inbox[0]["text_en"]
+    assert ctx.c.get("/api/state?role=parent").json()["inbox"] == []
+
+
+def test_warn_son_needs_a_warning_on_the_card(ctx):
+    p = ready_input(ctx)
+    r = ctx.c.post(f"/api/inputs/{p.id}/warn-son")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "no_warning"
+
+
+def test_saving_anyway_keeps_the_warning_on_the_record(ctx):
+    p = ready_input(ctx, scam_card())
+    r = ctx.c.post(f"/api/inputs/{p.id}/confirm", json={"actions": p.card["actions"], "role": "parent"})
+    ob = asyncio.run(ctx.store.get_obligation(r.json()["results"][0]["obligation_id"]))
+    assert ob["scam"]["level"] == "warning"
+
+
+def test_done_offers_next_year_and_repeat_adds_it(ctx):
+    oid = confirm_one(ctx)            # the fixture card is motor insurance due in 70 days
+    r = ctx.c.post(f"/api/obligations/{oid}/done", json={"role": "parent"}).json()
+    offer = r["repeat_offer"]
+    assert offer["obligation_id"] == oid and offer["due_date"][:4] == str(date.fromisoformat(DUE).year + 1)
+    rep = ctx.c.post(f"/api/obligations/{oid}/repeat", json={"role": "parent"})
+    assert rep.status_code == 200
+    items = {o["id"]: o for o in ctx.c.get("/api/state").json()["obligations"]}
+    new = items[rep.json()["obligation_id"]]
+    assert new["amount_inr"] is None and new["last_amount_inr"] == 18400 and new["yearly"] is True
+    assert new["repeat_of"] == oid and new["status"] == "active"
+
+
+def test_repeat_before_done_is_refused(ctx):
+    oid = confirm_one(ctx)
+    r = ctx.c.post(f"/api/obligations/{oid}/repeat", json={"role": "parent"})
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "not_done_yet"

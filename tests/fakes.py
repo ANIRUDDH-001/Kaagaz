@@ -77,3 +77,12 @@ class FakeTemporal:
 
     def get_workflow_handle(self, workflow_id: str) -> FakeHandle:
         return FakeHandle(self, workflow_id)
+
+
+class FakeTTS:
+    def __init__(self):
+        self.calls: list[tuple[str, str]] = []
+
+    async def synthesize(self, text: str, lang: str = "hi") -> bytes:
+        self.calls.append((text, lang))
+        return b"MP3"

@@ -25,6 +25,7 @@ async def test_clean_paper_needs_no_check_and_reads_back():
     assert a["needs_check"] == [] and a["consequence"] == "No Claim Bonus is lost"
     assert a["remind_offsets_days"] == [30, 7, 1] and a["escalate"] is True
     assert card["readback_hi"] == "गाड़ी का इंश्योरेंस, ₹18,400, आख़िरी तारीख़ 14 दिसंबर। सही है?"
+    assert card["readback_en"] == "Car insurance renewal, ₹18,400, due 14 Dec. Is that right?"
     assert card["summary_hi"] == "यह गाड़ी के बीमा का नोटिस है।"
 
 
@@ -46,6 +47,7 @@ async def test_missing_date_stays_null():
     # Spec hard rule 1: never guess a date; ask for it out loud instead of "is this right?"
     assert "आख़िरी तारीख़" not in card["readback_hi"]
     assert card["readback_hi"].endswith("तारीख़ नहीं मिली — काग़ज़ पर देखकर बताइए।")
+    assert card["readback_en"].endswith("Due date not found — please check the paper.")
 
 
 async def test_consequence_without_evidence_is_dropped():
@@ -107,7 +109,8 @@ async def test_answer_is_spoken_without_confirmation():
 
 async def test_nothing_understood_asks_again():
     card = await plan_speech(FakeGemma({"actions": []}), "...", OBS, TODAY)
-    assert card["actions"] == [{"tool": "clarify", "question_hi": "माफ़ कीजिए, समझ नहीं पाया। फिर से बोलिए।"}]
+    assert card["actions"] == [{"tool": "clarify", "question_hi": "माफ़ कीजिए, समझ नहीं पाया। फिर से बोलिए।",
+                                "question_en": "Sorry, I didn't understand. Please say it again."}]
 
 
 async def test_plan_prompt_carries_today_and_items():
@@ -124,8 +127,9 @@ def test_confirm_keeps_user_choices():
 
 
 def test_readback_for_update():
-    assert readback([{"tool": "update_obligation", "title_hi": "LIC प्रीमियम", "amount_inr": 9900,
-                      "due_date": None}]) == "LIC प्रीमियम — नई रकम ₹9,900। सही है?"
+    en, hi = readback([{"tool": "update_obligation", "title_hi": "LIC प्रीमियम", "amount_inr": 9900,
+                        "due_date": None}])
+    assert hi == "LIC प्रीमियम — नई रकम ₹9,900। सही है?"
 
 
 def test_plan_schema_has_one_branch_per_tool_requiring_its_own_fields():
@@ -141,3 +145,51 @@ def test_plan_schema_has_one_branch_per_tool_requiring_its_own_fields():
     assert {"amount_inr", "due_date", "title"} <= set(branches["create_obligation"]["required"])
     assert set(branches["mark_done"]["required"]) == {"tool", "obligation_id"}
     assert set(branches["snooze"]["required"]) == {"tool", "obligation_id", "until"}
+
+
+async def test_answers_and_summaries_come_in_both_languages():
+    plan = {"actions": [{"tool": "answer", "text_hi": "बिजली का बिल 10 अक्टूबर तक भरना है।",
+                         "text_en": "The electricity bill is due by 10 October.", "obligation_id": "ob_school"}]}
+    card = await plan_speech(FakeGemma(plan), "...", OBS, TODAY)
+    assert card["readback_en"] == "The electricity bill is due by 10 October."
+    assert card["actions"][0]["text_en"] == "The electricity bill is due by 10 October."
+    paper = await read_paper(FakeGemma({**MOTOR, "summary_en": "This is a car insurance notice."}), b"i",
+                             "image/jpeg", TODAY)
+    assert paper["summary_en"] == "This is a car insurance notice."
+
+
+async def test_unknown_item_asks_in_both_languages():
+    plan = {"actions": [{"tool": "mark_done", "obligation_id": "nope"}]}
+    card = await plan_speech(FakeGemma(plan), "...", OBS, TODAY)
+    assert card["actions"][0]["question_en"] == "Which paper do you mean? Please say its name."
+    assert card["readback_en"] == "Which paper do you mean? Please say its name."
+
+
+SCAM_RAW = {"category": "other", "issuer": "unknown", "title": "Lottery prize message", "title_hi": "लॉटरी इनाम का मैसेज",
+            "amount_inr": 12500, "due_date": None, "action": "Pay a registration fee", "consequence": None,
+            "evidence_amount": "registration fee of ₹12,500", "evidence_due_date": None, "evidence_consequence": None,
+            "summary_hi": "यह इनाम का मैसेज है।", "summary_en": "This is a prize message.", "doc_type": "message",
+            "scam_signs": [{"sign": "prize_refund", "evidence": "has won ₹25,00,000 in the KBC Lucky Draw"},
+                           {"sign": "personal_payment", "evidence": "pay ₹12,500 to UPI: kbcprize.claim@ybl"}]}
+
+
+async def test_a_scam_message_warns_and_says_the_warning_first():
+    card = await read_paper(FakeGemma(SCAM_RAW), b"img", "image/jpeg", TODAY)
+    assert card["scam"]["level"] == "warning" and card["actions"][0]["scam"] == card["scam"]
+    assert card["doc_type"] == "message"
+    assert card["readback_en"].startswith("Careful — this doesn't look genuine.")
+    assert card["readback_hi"].startswith("सावधान — यह असली नहीं लगता।")
+    assert "Due date not found" not in card["readback_en"]
+
+
+async def test_a_clean_paper_has_no_scam_warning():
+    card = await read_paper(FakeGemma(MOTOR), b"img", "image/jpeg", TODAY)
+    assert card["scam"] == {"level": "none", "signs": []}
+    assert card["readback_en"] == "Car insurance renewal, ₹18,400, due 14 Dec. Is that right?"
+
+
+async def test_caution_is_said_before_the_normal_readback():
+    raw = {**MOTOR, "scam_signs": [{"sign": "call_number", "evidence": "call our agent on 98765 43210"}]}
+    card = await read_paper(FakeGemma(raw), b"img", "image/jpeg", TODAY)
+    assert card["scam"]["level"] == "caution"
+    assert card["readback_en"] == "Be careful with this one. Car insurance renewal, ₹18,400, due 14 Dec. Is that right?"

@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -52,3 +54,37 @@ def test_browser_tts_means_no_server_voice(monkeypatch):
     monkeypatch.setenv("TTS_BACKEND", "browser")
     get_settings.cache_clear()
     assert make_tts(get_settings(), mock_store()) is None
+
+
+async def test_tts_sends_the_language_and_caches_per_language():
+    bodies = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, content=b"MP3")
+
+    tts = ElevenLabsTTS("k", "eleven_flash_v2_5", "v1", mock_store(), transport=httpx.MockTransport(handler))
+    await tts.synthesize("10 October", lang="en")
+    await tts.synthesize("10 October", lang="hi")
+    await tts.synthesize("10 October", lang="en")    # cached
+    assert [b["language_code"] for b in bodies] == ["en", "hi"]
+
+
+def test_rupee_amounts_are_said_as_words_not_letters():
+    from ai.tts import speakable
+    assert speakable("बिजली का बिल, ₹2,346 — आख़िरी तारीख़ 10 अक्टूबर।", "hi") == \
+        "बिजली का बिल, 2346 रुपये — आख़िरी तारीख़ 10 अक्टूबर।"
+    assert speakable("Car insurance, ₹18,400, due 14 Dec.", "en") == "Car insurance, 18,400 rupees, due 14 Dec."
+    assert speakable("₹ 1,50,000 aur ₹500", "hi") == "150000 रुपये aur 500 रुपये"
+
+
+async def test_tts_sends_speakable_text():
+    bodies = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, content=b"MP3")
+
+    tts = ElevenLabsTTS("k", "eleven_multilingual_v2", "v1", mock_store(), transport=httpx.MockTransport(handler))
+    await tts.synthesize("₹2,346 सही है?", lang="hi")
+    assert bodies[0]["text"] == "2346 रुपये सही है?"
