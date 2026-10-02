@@ -1,0 +1,32 @@
+{
+  "today": "2026-10-02",
+  "papers": {
+    "motor_renewal": {"category": "motor_insurance", "amount_inr": 18400, "due_date": "2026-12-14", "consequence_keywords": ["inspection", "no claim bonus"]},
+    "electricity_bill": {"category": "electricity_bill", "amount_inr": 2346, "due_date": "2026-10-10", "consequence_keywords": ["surcharge", "disconnect"]},
+    "school_fee": {"category": "school_fee", "amount_inr": 14500, "due_date": "2026-10-15", "consequence_keywords": ["50", "struck off"]},
+    "property_tax": {"category": "property_tax", "amount_inr": 12350, "due_date": "2027-03-31", "consequence_keywords": ["rebate", "1.5%"]}
+  },
+  "items": [
+    {"_id": "ob_elec", "title": "Electricity bill", "title_hi": "बिजली का बिल", "amount_inr": 2346, "due_date": "2026-10-10", "status": "active"},
+    {"_id": "ob_school", "title": "School fee", "title_hi": "स्कूल की फ़ीस", "amount_inr": 14500, "due_date": "2026-10-15", "status": "active"},
+    {"_id": "ob_lic", "title": "LIC premium", "title_hi": "LIC प्रीमियम", "amount_inr": 9800, "due_date": "2026-10-20", "status": "active"}
+  ],
+  "speech": {
+    "new_insurance_hinglish": {
+      "said": "Ye gaadi ke insurance ka kaagaz aaya hai. Premium atharah hazaar chaar sau rupaye hai, aur last date chaudah December hai. Mujhe ek hafta pehle yaad dila dena, aur agar main bhool jaaun toh bete ko bata dena.",
+      "expect": [{"tool": "create_obligation", "amount_inr": 18400, "due_date": "2026-12-14", "remind_offsets_days": [7, 1]}]
+    },
+    "question_hindi": {
+      "said": "बिजली का बिल कब तक भरना है? और पिछले महीने कितना आया था?",
+      "expect": [{"tool": "answer", "used_obligation_ids": ["ob_elec"]}]
+    },
+    "done_and_snooze_hinglish": {
+      "said": "School ki fees aaj jama kar di, receipt bhi mil gayi. Aur LIC wala reminder Friday tak aage kar do.",
+      "expect": [{"tool": "mark_done", "obligation_id": "ob_school"}, {"tool": "snooze", "obligation_id": "ob_lic", "until": "2026-10-09"}]
+    },
+    "property_tax_english": {
+      "said": "The property tax notice came today. The amount is twelve thousand three hundred and fifty rupees. Pay before thirty-first March to get the five percent rebate.",
+      "expect": [{"tool": "create_obligation", "amount_inr": 12350, "due_date": "2027-03-31"}]
+    }
+  }
+}
