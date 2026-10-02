@@ -4,6 +4,7 @@ from datetime import date, datetime, time, timedelta, timezone
 IST = timezone(timedelta(hours=5, minutes=30), "IST")
 HINDI_MONTHS = ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून",
                 "जुलाई", "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"]
+ENGLISH_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
@@ -21,6 +22,11 @@ def today_label(d: date) -> str:
 
 def at_ist(d: date, hour: int) -> datetime:
     return datetime.combine(d, time(hour), IST).astimezone(timezone.utc)
+
+
+def english_date(d: date, with_year: bool = False) -> str:
+    s = f"{d.day} {ENGLISH_MONTHS[d.month - 1]}"
+    return f"{s} {d.year}" if with_year else s
 
 
 def hindi_date(d: date, with_year: bool = False) -> str:

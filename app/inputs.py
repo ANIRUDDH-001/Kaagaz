@@ -10,12 +10,7 @@ EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", 
               "audio/webm": ".webm", "audio/mp4": ".m4a", "audio/ogg": ".ogg", "audio/mpeg": ".mp3",
               "audio/wav": ".wav", "audio/x-m4a": ".m4a"}
 
-ERRORS = {
-    "Gone": "यह काग़ज़ या आवाज़ अब सर्वर पर नहीं है — कृपया फिर से भेजिए।",
-    "BadInput": "समझ नहीं आया — कृपया साफ़ फ़ोटो या आवाज़ के साथ फिर से कोशिश करें।",
-    "Empty": "कोई आवाज़ सुनाई नहीं दी — फिर से बोलिए।",
-    "Busy": "AI अभी व्यस्त है — थोड़ी देर में फिर कोशिश करें।",
-}
+ERROR_CODES = {"Gone": "gone", "BadInput": "bad_input", "Empty": "empty", "Busy": "busy"}   # app.i18n codes
 
 
 @dataclass

@@ -1,12 +1,21 @@
 """Hindi voice via ElevenLabs, cached in MongoDB so repeated readbacks cost no credits.
 In private mode (TTS_BACKEND=browser) the browser speaks instead and nothing leaves the device."""
 import hashlib
+import re
 
 import httpx
 
 from app.clock import now_utc
 
 API = "https://api.elevenlabs.io"
+RUPEES = re.compile(r"₹\s?(\d+(?:,\d+)*)")
+
+
+def speakable(text: str, lang: str) -> str:
+    """Voices read "₹2,346" as the letters "R S"; say the amount as a number of rupees instead."""
+    if lang == "hi":
+        return RUPEES.sub(lambda m: f"{m.group(1).replace(',', '')} रुपये", text)
+    return RUPEES.sub(lambda m: f"{m.group(1)} rupees", text)
 
 
 class ElevenLabsTTS:
@@ -29,15 +38,15 @@ class ElevenLabsTTS:
             self.voice_id = r.json()["voices"][0]["voice_id"]
         return self.voice_id
 
-    async def synthesize(self, text: str) -> bytes:
+    async def synthesize(self, text: str, lang: str = "hi") -> bytes:
         voice = await self._voice()
-        key = hashlib.sha256(f"{voice}|{self.model}|{text}".encode()).hexdigest()
+        key = hashlib.sha256(f"{voice}|{self.model}|{lang}|{text}".encode()).hexdigest()
         cached = await self.store.tts_get(key)
         if cached:
             return cached
-        body = {"text": text, "model_id": self.model}
+        body = {"text": speakable(text, lang), "model_id": self.model}
         if "flash" in self.model or "turbo" in self.model:
-            body["language_code"] = "hi"
+            body["language_code"] = lang
         async with self._client() as client:
             r = await client.post(f"{API}/v1/text-to-speech/{voice}", json=body,
                                   params={"output_format": "mp3_44100_64"})

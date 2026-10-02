@@ -4,8 +4,10 @@ import math
 import re
 from datetime import date, timedelta
 
+from ai.scam import SPOKEN, check_signs, scam_summary
 from ai.prompts import CATEGORIES, PAPER_SCHEMA, PLAN_SCHEMA, paper_prompt, plan_prompt
-from app.clock import hindi_date, today_label
+from app.clock import english_date, hindi_date, today_label
+from app.i18n import MESSAGES
 from flows.messages import inr
 
 DEVANAGARI_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
@@ -17,7 +19,6 @@ MONTH_WORDS = {
 }
 NEEDS_ID = {"update_obligation", "mark_done", "snooze"}
 DEFAULT_OFFSETS = [30, 7, 1]
-NOT_UNDERSTOOD = "माफ़ कीजिए, समझ नहीं पाया। फिर से बोलिए।"
 
 
 def _float(v) -> float | None:
@@ -35,8 +36,15 @@ def _date(v) -> date | None:
         return None
 
 
-def _clarify(question: str) -> dict:
-    return {"tool": "clarify", "question_hi": question}
+def _clarify(code: str) -> dict:
+    en, hi = MESSAGES[code]
+    return {"tool": "clarify", "question_hi": hi, "question_en": en}
+
+
+def _both(hi: str | None, en: str | None, limit: int) -> tuple[str, str]:
+    """Model text in both languages; if it gave only one, show that one in both (better than nothing)."""
+    hi, en = (hi or "").strip()[:limit], (en or "").strip()[:limit]
+    return hi or en, en or hi
 
 
 def amount_supported(amount: float, evidence: str | None) -> bool:
@@ -109,6 +117,8 @@ def validate_create(a: dict, today: date, source: str) -> dict:
         "remind_offsets_days": _offsets(a),
         # The son is told by default; only an explicit untick on the card turns it off.
         "escalate": not (source == "confirm" and a.get("escalate") is False),
+        # A warning the person saved anyway stays on the record (it comes from the server's card, not the browser).
+        "scam": a.get("scam") if source == "confirm" and isinstance(a.get("scam"), dict) else None,
         "needs_check": sorted(set(needs)),
     }
 
@@ -122,13 +132,13 @@ def validate_plan(actions: list[dict], obligations_by_id: dict[str, dict], today
         elif tool in NEEDS_ID:
             ob = obligations_by_id.get(a.get("obligation_id") or "")
             if ob is None:
-                out.append(_clarify("कौन से काग़ज़ की बात है? उसका नाम बताइए।"))
+                out.append(_clarify("which_paper"))
                 continue
             item = {"tool": tool, "obligation_id": ob["_id"], "title": ob.get("title"), "title_hi": ob.get("title_hi")}
             if tool == "snooze":
                 until = _date(a.get("until"))
                 if until is None or until < today:
-                    out.append(_clarify("किस तारीख़ को फिर याद दिलाऊँ?"))
+                    out.append(_clarify("which_date"))
                     continue
                 item["until"] = until.isoformat()
             if tool == "update_obligation":
@@ -136,64 +146,93 @@ def validate_plan(actions: list[dict], obligations_by_id: dict[str, dict], today
                 due = _date(a.get("due_date"))
                 amount = amount if amount is not None and 0 < amount < 1e7 else None
                 if amount is None and due is None:
-                    out.append(_clarify("क्या बदलना है — रकम या तारीख़?"))
+                    out.append(_clarify("what_change"))
                     continue
                 item["amount_inr"] = amount
                 item["due_date"] = due.isoformat() if due else None
             out.append(item)
-        elif tool == "answer" and a.get("text_hi"):
+        elif tool == "answer" and (a.get("text_hi") or a.get("text_en")):
+            hi, en = _both(a.get("text_hi"), a.get("text_en"), 600)
             used = [a["obligation_id"]] if a.get("obligation_id") in obligations_by_id else []
-            out.append({"tool": "answer", "text_hi": a["text_hi"].strip()[:600], "used_obligation_ids": used})
+            out.append({"tool": "answer", "text_hi": hi, "text_en": en, "used_obligation_ids": used})
         elif tool == "clarify":
-            out.append(_clarify((a.get("question_hi") or NOT_UNDERSTOOD).strip()[:300]))
+            hi, en = _both(a.get("question_hi"), a.get("question_en"), 300)
+            out.append({"tool": "clarify", "question_hi": hi, "question_en": en} if hi else _clarify("not_understood"))
     return out
 
 
-def readback(actions: list[dict]) -> str:
-    parts: list[str] = []
+def readback(actions: list[dict], scam_level: str = "none") -> tuple[str, str]:
+    """What the app says back, in English and Hindi, written from validated fields only."""
+    en_parts: list[str] = []
+    hi_parts: list[str] = []
     changes = no_date = False
     for a in actions:
         tool = a["tool"]
-        name = a.get("title_hi") or a.get("title") or "काग़ज़"
+        en_name = a.get("title") or a.get("title_hi") or "This paper"
+        hi_name = a.get("title_hi") or a.get("title") or "काग़ज़"
         if tool == "create_obligation":
             changes = True
-            s = name
+            en, hi = en_name, hi_name
             if a.get("amount_inr"):
-                s += f", {inr(a['amount_inr'])}"
+                en += f", {inr(a['amount_inr'])}"
+                hi += f", {inr(a['amount_inr'])}"
             if a.get("due_date"):
-                s += f", आख़िरी तारीख़ {hindi_date(date.fromisoformat(a['due_date']))}"
+                d = date.fromisoformat(a["due_date"])
+                en += f", due {english_date(d)}"
+                hi += f", आख़िरी तारीख़ {hindi_date(d)}"
             else:
                 no_date = True
-            parts.append(s + "।")
+            en_parts.append(en + ".")
+            hi_parts.append(hi + "।")
         elif tool == "mark_done":
             changes = True
-            parts.append(f"{name} — हो गया।")
+            en_parts.append(f"{en_name} — done.")
+            hi_parts.append(f"{hi_name} — हो गया।")
         elif tool == "snooze":
             changes = True
-            parts.append(f"{name} — {hindi_date(date.fromisoformat(a['until']))} को फिर याद दिलाऊँगा।")
+            d = date.fromisoformat(a["until"])
+            en_parts.append(f"{en_name} — I'll remind you again on {english_date(d)}.")
+            hi_parts.append(f"{hi_name} — {hindi_date(d)} को फिर याद दिलाऊँगा।")
         elif tool == "update_obligation":
             changes = True
-            bits = []
+            en_bits, hi_bits = [], []
             if a.get("amount_inr"):
-                bits.append(f"नई रकम {inr(a['amount_inr'])}")
+                en_bits.append(f"new amount {inr(a['amount_inr'])}")
+                hi_bits.append(f"नई रकम {inr(a['amount_inr'])}")
             if a.get("due_date"):
-                bits.append(f"नई तारीख़ {hindi_date(date.fromisoformat(a['due_date']))}")
-            parts.append(f"{name} — {', '.join(bits)}।")
+                d = date.fromisoformat(a["due_date"])
+                en_bits.append(f"new date {english_date(d)}")
+                hi_bits.append(f"नई तारीख़ {hindi_date(d)}")
+            en_parts.append(f"{en_name} — {', '.join(en_bits)}.")
+            hi_parts.append(f"{hi_name} — {', '.join(hi_bits)}।")
         elif tool == "answer":
-            parts.append(a["text_hi"])
+            en_parts.append(a.get("text_en") or a["text_hi"])
+            hi_parts.append(a["text_hi"])
         elif tool == "clarify":
-            parts.append(a["question_hi"])
-    text = " ".join(parts)
+            en_parts.append(a.get("question_en") or a["question_hi"])
+            hi_parts.append(a["question_hi"])
+    en, hi = " ".join(en_parts), " ".join(hi_parts)
+    if scam_level == "warning":   # a likely scam: say only the warning, never "is that right?"
+        return SPOKEN["warning"]
     if no_date:   # hard rule 1: never guess a date; ask for it
-        return f"{text} तारीख़ नहीं मिली — काग़ज़ पर देखकर बताइए।"
-    return f"{text} सही है?" if changes else text
+        en, hi = f"{en} Due date not found — please check the paper.", f"{hi} तारीख़ नहीं मिली — काग़ज़ पर देखकर बताइए।"
+    elif changes:
+        en, hi = f"{en} Is that right?", f"{hi} सही है?"
+    if scam_level == "caution":
+        return f"{SPOKEN['caution'][0]} {en}", f"{SPOKEN['caution'][1]} {hi}"
+    return en, hi
 
 
 async def read_paper(gemma, image: bytes, mime: str, today: date) -> dict:
     raw = await gemma.generate_json(paper_prompt(today_label(today)), PAPER_SCHEMA, image=image, mime=mime)
     action = validate_create(raw, today, source="photo")
-    return {"kind": "paper", "transcript": None, "summary_hi": raw.get("summary_hi"),
-            "actions": [action], "readback_hi": readback([action])}
+    scam = scam_summary(check_signs(raw.get("scam_signs")))
+    action["scam"] = scam
+    en, hi = readback([action], scam["level"])
+    doc_type = raw.get("doc_type") if raw.get("doc_type") in ("bill_or_notice", "message", "other") else "other"
+    return {"kind": "paper", "doc_type": doc_type, "transcript": None, "summary_hi": raw.get("summary_hi"),
+            "summary_en": raw.get("summary_en"), "scam": scam, "actions": [action], "readback_en": en,
+            "readback_hi": hi}
 
 
 async def plan_speech(gemma, said: str, obligations: list[dict], today: date, source: str = "voice") -> dict:
@@ -204,6 +243,7 @@ async def plan_speech(gemma, said: str, obligations: list[dict], today: date, so
     raw = await gemma.generate_json(plan_prompt(today_label(today), items, said), PLAN_SCHEMA)
     actions = validate_plan(raw.get("actions") or [], {o["_id"]: o for o in obligations}, today, source)
     if not actions:
-        actions = [_clarify(NOT_UNDERSTOOD)]
-    return {"kind": "speech", "transcript": said, "summary_hi": None, "actions": actions,
-            "readback_hi": readback(actions)}
+        actions = [_clarify("not_understood")]
+    en, hi = readback(actions)
+    return {"kind": "speech", "transcript": said, "summary_hi": None, "summary_en": None, "actions": actions,
+            "readback_en": en, "readback_hi": hi}

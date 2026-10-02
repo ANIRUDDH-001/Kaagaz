@@ -43,8 +43,10 @@ async def deliver(store, push, n: Notification, now: datetime) -> str:
 
     household = await store.get_household(n.household_id) or {}
     subscriptions = household.get("members", {}).get(n.to_role, {}).get("push", [])
-    payload = {"title": "काग़ज़ · Kaagaz", "body": n.text_hi, "tag": n.id, "role": n.to_role}
     for sub in subscriptions:
+        english = sub.get("lang") == "en"   # each phone hears the language it subscribed in
+        payload = {"title": "Kaagaz" if english else "काग़ज़ · Kaagaz", "body": n.text_en if english else n.text_hi,
+                   "tag": n.id, "role": n.to_role}
         if await push.send(sub, payload, topic_for(n.id)) == "gone":
             await store.remove_push(n.household_id, sub["endpoint"])
     await store.db.notifications.update_one({"_id": n.id}, {"$set": {"push_sent_at": now}})

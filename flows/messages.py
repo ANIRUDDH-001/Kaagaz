@@ -64,3 +64,11 @@ def escalation_text(ob: dict, today: date) -> tuple[str, str]:
     hi = f"पापा ने अभी तक {title_hi} ({detail_hi}) को 'हो गया' नहीं किया है। एक बार उनसे बात कर लीजिए।"
     en = f"Papa hasn't marked {ob['title']} ({detail_en}) as done. Please check with him."
     return hi, en
+
+
+def scam_warning_text(title_en: str, title_hi: str, scam: dict) -> tuple[str, str]:
+    signs_hi = "; ".join(s["hi"] for s in scam["signs"])
+    signs_en = "; ".join(s["en"] for s in scam["signs"])
+    hi = f"पापा को एक संदिग्ध मैसेज या काग़ज़ मिला है ({title_hi}): {signs_hi}। पैसे भेजने से पहले उनसे बात कर लीजिए।"
+    en = f"Papa received something suspicious ({title_en}): {signs_en}. Please talk to him before he pays anything."
+    return hi, en

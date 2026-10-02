@@ -1,6 +1,8 @@
 """Prompts and JSON schemas. Same text for hosted and local Gemma."""
 import json
 
+from ai.scam import SCAM_SIGNS
+
 CATEGORIES = ["motor_insurance", "health_insurance", "life_insurance", "electricity_bill", "water_bill",
               "gas_bill", "school_fee", "college_fee", "property_tax", "certificate_renewal", "other"]
 TOOLS = ["create_obligation", "update_obligation", "mark_done", "snooze", "answer", "clarify"]
@@ -23,15 +25,20 @@ PAPER_SCHEMA = {
         "evidence_due_date": _S,
         "evidence_consequence": _S,
         "summary_hi": {"type": "string"},
+        "summary_en": {"type": "string"},
+        "doc_type": {"type": "string", "enum": ["bill_or_notice", "message", "other"]},
+        "scam_signs": {"type": "array", "items": {"type": "object", "properties": {
+            "sign": {"type": "string", "enum": SCAM_SIGNS}, "evidence": {"type": "string"}},
+            "required": ["sign", "evidence"]}},
     },
     "required": ["category", "issuer", "title", "title_hi", "amount_inr", "due_date", "action", "consequence",
-                 "evidence_amount", "evidence_due_date", "evidence_consequence", "summary_hi"],
+                 "evidence_amount", "evidence_due_date", "evidence_consequence", "summary_hi", "summary_en", "doc_type", "scam_signs"],
 }
 
 _PLAN_FIELDS = {
     "obligation_id": _S, "title": _S, "title_hi": _S, "category": _S, "amount_inr": _N, "due_date": _S,
     "action": _S, "consequence": _S, "evidence": _S, "remind_before_days": {"type": ["integer", "null"]},
-    "escalate": {"type": ["boolean", "null"]}, "until": _S, "text_hi": _S, "question_hi": _S,
+    "escalate": {"type": ["boolean", "null"]}, "until": _S, "text_hi": _S, "text_en": _S, "question_hi": _S, "question_en": _S,
 }
 _TOOL_FIELDS = {
     "create_obligation": ["title", "title_hi", "category", "amount_inr", "due_date", "action", "consequence",
@@ -39,8 +46,8 @@ _TOOL_FIELDS = {
     "update_obligation": ["obligation_id", "amount_inr", "due_date"],
     "mark_done": ["obligation_id"],
     "snooze": ["obligation_id", "until"],
-    "answer": ["obligation_id", "text_hi"],
-    "clarify": ["question_hi"],
+    "answer": ["obligation_id", "text_hi", "text_en"],
+    "clarify": ["question_hi", "question_en"],
 }
 
 
@@ -60,6 +67,7 @@ PLAN_SCHEMA = {
 def paper_prompt(today_label: str) -> str:
     return f"""You help an Indian father manage important household papers. Today is {today_label}.
 Read this photo of a paper and extract what he must do.
+The photo may be a paper (bill, notice, policy) or a screenshot of an SMS, WhatsApp or e-mail message.
 Rules:
 - Copy facts only from the paper. If the paper does not show something, use null. Never guess.
 - amount_inr: the total amount printed on the paper that must be paid by the last date, as a plain number.
@@ -70,7 +78,18 @@ Rules:
 - category: one of {CATEGORIES}.
 - title: a short English name, e.g. "Car insurance renewal". title_hi: the same in simple Hindi (Devanagari).
 - action: what he must do, in short English.
-- summary_hi: 2 simple sentences in Hindi (Devanagari) for an elderly reader."""
+- summary_hi: 2 simple sentences in Hindi (Devanagari) for an elderly reader.
+- summary_en: the same 2 sentences in simple English.
+- doc_type: bill_or_notice, message, or other.
+- scam_signs: warning signs that this may be a scam, each with the exact words from the image as evidence. Only:
+  personal_payment (pay a personal UPI ID, a mobile number or a personal bank account),
+  suspicious_link (pay or "update" details through a link),
+  asks_secret (asks for an OTP, PIN, CVV or password),
+  remote_app (install AnyDesk, TeamViewer, QuickSupport or an .apk file),
+  threat_deadline (disconnection, arrest or a penalty within hours, e.g. tonight, within 2 hours),
+  call_number (call or WhatsApp a mobile number to sort out a problem),
+  prize_refund (a prize, lottery, bonus, KYC reward or refund that needs a payment or details first).
+  A normal bill's printed due date, late fee, helpline or official website is NOT a warning sign. No signs: []."""
 
 
 def plan_prompt(today_label: str, items: list[dict], said: str) -> str:
@@ -82,9 +101,10 @@ Today is {today_label}. He speaks Hindi, Hinglish or English. Turn what he said 
 - update_obligation: change the amount or the date of an existing item (obligation_id from the list below).
 - mark_done: he says an existing item is done or paid (obligation_id).
 - snooze: he asks to be reminded later about an existing item (obligation_id, until as YYYY-MM-DD).
-- answer: he asks a question. Answer in text_hi (simple Hindi, Devanagari) using ONLY the items below.
+- answer: he asks a question. Answer in text_hi (simple Hindi, Devanagari) AND text_en (simple English) using
+  ONLY the items below.
   If they don't contain the answer, say so. Put the id of the item you used in obligation_id.
-- clarify: you can't tell what he means, or which item he means. Ask in question_hi (Hindi).
+- clarify: you can't tell what he means, or which item he means. Ask in question_hi (Hindi) and question_en (English).
 Dates: resolve words like "Friday" or "chaudah December" relative to today and pick the next future date.
 Amounts: plain rupee numbers. Never invent an amount or a date he didn't say.
 His current items (JSON): {json.dumps(items, ensure_ascii=False, default=str)}

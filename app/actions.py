@@ -8,21 +8,26 @@ from temporalio.service import RPCError, RPCStatusCode
 
 from ai.understand import validate_create
 from app.clock import today_ist
+from app.i18n import msg
 from flows.obligation_workflow import ObligationArgs, ObligationWorkflow
 from flows.temporal import TASK_QUEUE
 
 STORED_FIELDS = ("title", "title_hi", "category", "amount_inr", "due_date", "action", "consequence",
                  "evidence_amount", "evidence_due_date", "evidence_consequence", "summary_hi",
-                 "remind_offsets_days", "escalate", "source")
+                 "remind_offsets_days", "escalate", "source", "scam")
 CHANGES = ("create_obligation", "mark_done", "snooze", "update_obligation")
 # What the confirmation card lets the user edit. Everything else comes from the card the server made.
 EDITABLE = {"create_obligation": ("title", "title_hi", "amount_inr", "due_date", "action", "escalate",
                                   "remind_offsets_days")}
-CARD_CHANGED = "यह कार्ड बदल गया है — कृपया फिर से भेजिए।"
 
 
 class ActionError(Exception):
-    """A confirmed action can't be carried out; the message is shown to the user (Hindi)."""
+    """A confirmed action can't be carried out. `message` is shown to the user in their language."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+        self.message = msg(code)
 
 
 def bind_to_card(card_actions: list[dict], submitted: list[dict]) -> list[dict]:
@@ -30,11 +35,11 @@ def bind_to_card(card_actions: list[dict], submitted: list[dict]) -> list[dict]:
     editable; it can't add, drop, swap or retarget an action that Gemma didn't propose."""
     proposed = [a for a in card_actions if a.get("tool") in CHANGES]
     if len(submitted) != len(proposed):
-        raise ActionError(CARD_CHANGED)
+        raise ActionError("card_changed")
     bound = []
     for want, got in zip(proposed, submitted):
         if got.get("tool") != want["tool"] or got.get("obligation_id") != want.get("obligation_id"):
-            raise ActionError(CARD_CHANGED)
+            raise ActionError("card_changed")
         bound.append({**want, **{k: got[k] for k in EDITABLE.get(want["tool"], ()) if k in got}})
     return bound
 
@@ -48,8 +53,8 @@ async def _signal(temporal, workflow_id: str, signal, *args, needs_workflow: boo
         if not needs_workflow:
             return   # reminders check the database before sending
         if e.status == RPCStatusCode.NOT_FOUND:
-            raise ActionError("इसके reminder बंद हो चुके हैं — काग़ज़ फिर से दिखाकर नया जोड़िए।") from None
-        raise ActionError("अभी सेव नहीं हो पाया — थोड़ी देर में फिर कोशिश कीजिए।") from None
+            raise ActionError("reminders_closed") from None
+        raise ActionError("try_later") from None
 
 
 def _event(now: datetime, role: str, event: str, detail=None) -> dict:
@@ -61,7 +66,7 @@ async def create_obligation(store, temporal, hh: dict, a: dict, role: str, now: 
     """`oid` is derived from the input, so a retried confirm finds its own record instead of adding one."""
     v = validate_create(a, today_ist(now), source="confirm")
     if not v["due_date"]:
-        raise ActionError("आख़िरी तारीख़ ज़रूरी है — कृपया तारीख़ भरिए।")
+        raise ActionError("date_required")
     doc = {"_id": oid, "household_id": hh["_id"], **{k: v[k] for k in STORED_FIELDS},
            "status": "active", "snoozed_until": None, "snoozed_at": None, "workflow_id": f"obligation-{oid}",
            "source_input_id": input_id, "history": [_event(now, role, "created")], "created_at": now,
@@ -91,11 +96,11 @@ async def snooze(store, temporal, ob: dict, until: str, role: str, now: datetime
     try:
         d = date.fromisoformat(until)
     except (TypeError, ValueError):
-        raise ActionError("तारीख़ समझ नहीं आई।") from None
+        raise ActionError("date_unclear") from None
     if d < today_ist(now):
-        raise ActionError("बीती हुई तारीख़ पर याद नहीं दिला सकते — आगे की तारीख़ चुनिए।")
+        raise ActionError("date_past")
     if ob["status"] != "active":
-        raise ActionError("यह काम पहले ही पूरा हो चुका है।")
+        raise ActionError("already_done")
     await _signal(temporal, ob["workflow_id"], ObligationWorkflow.snooze, d.isoformat(), needs_workflow=True)
     await store.set_obligation(ob["_id"], {"snoozed_until": d.isoformat(), "snoozed_at": now},
                                _event(now, role, "snooze", d.isoformat()))
@@ -106,19 +111,19 @@ async def update_obligation(store, temporal, ob: dict, a: dict, role: str, now: 
     if a.get("amount_inr") is not None:
         amount = float(a["amount_inr"])
         if not 0 < amount < 1e7:
-            raise ActionError("रकम सही नहीं लग रही।")
+            raise ActionError("amount_wrong")
         fields["amount_inr"] = amount
     if a.get("due_date"):
         try:
             due = date.fromisoformat(a["due_date"])
         except ValueError:
-            raise ActionError("तारीख़ समझ नहीं आई।") from None
+            raise ActionError("date_unclear") from None
         today = today_ist(now)
         if not today - timedelta(days=60) <= due <= today + timedelta(days=730):   # same window as create
-            raise ActionError("यह तारीख़ सही नहीं लग रही।")
+            raise ActionError("date_wrong")
         fields["due_date"] = due.isoformat()
     if not fields:
-        raise ActionError("कुछ बदला नहीं।")
+        raise ActionError("nothing_changed")
     if fields.get("due_date") and fields["due_date"] != ob["due_date"]:
         await _signal(temporal, ob["workflow_id"], ObligationWorkflow.update_due, fields["due_date"],
                       needs_workflow=True)
@@ -136,7 +141,7 @@ async def execute_actions(store, temporal, hh: dict, actions: list[dict], role: 
         elif tool in ("mark_done", "snooze", "update_obligation"):
             ob = await store.get_obligation(a.get("obligation_id") or "", hh["_id"])
             if ob is None:
-                raise ActionError("वह काग़ज़ नहीं मिला।")
+                raise ActionError("not_found")
             if tool == "mark_done":
                 await mark_done(store, temporal, ob, role, now)
             elif tool == "snooze":

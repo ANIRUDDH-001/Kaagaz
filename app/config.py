@@ -32,8 +32,8 @@ class Settings:
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "gemma4:e4b"
     elevenlabs_api_key: str = ""
-    elevenlabs_tts_model: str = "eleven_flash_v2_5"
-    elevenlabs_voice_id: str = ""
+    elevenlabs_tts_model: str = "eleven_multilingual_v2"   # flash garbled Hindi dates (probe, 2026-10-02)
+    elevenlabs_voice_id: str = "SAz9YHcvj6GT2YYXdXww"       # "River", a premade voice; ids are public
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:admin@example.com"
