@@ -57,3 +57,39 @@ def test_summary_labels_every_sign_in_both_languages():
     assert summary["level"] == "warning"
     assert summary["signs"][0]["en"] == "Asks for an OTP, PIN or password"
     assert summary["signs"][0]["hi"] == "OTP, PIN या पासवर्ड माँगता है"
+
+
+def test_genuine_bill_wording_never_makes_a_red_warning():
+    """Words every genuine bill or policy prints. The model may wrongly propose them as signs; none may turn red."""
+    proposed = [
+        ("asks_secret", "The bank never asks for your OTP or PIN. Do not share it."),
+        ("asks_secret", "Indore, PIN 452001"),
+        ("asks_secret", "Pin code: 452001"),
+        ("prize_refund", "No Claim Bonus (NCB) 20%"),
+        ("prize_refund", "Security deposit refund adjusted"),
+        ("prize_refund", "Reward points earned: 120"),
+        ("prize_refund", "Cash withdrawal charges ₹20"),
+    ]
+    for sign, evidence in proposed:
+        assert check_signs([{"sign": sign, "evidence": evidence}]) == [], evidence
+    printed = [("personal_payment", "Deposit fees in school Account No. 34567890123"),
+               ("personal_payment", "खाता संख्या 1234567890"),
+               ("personal_payment", "Pay by UPI: mpez@sbi")]
+    for sign, evidence in printed:
+        assert level(check_signs([{"sign": sign, "evidence": evidence}], doc_type="bill_or_notice")) == "caution", evidence
+        assert level(check_signs([{"sign": sign, "evidence": evidence}], doc_type="message")) == "warning", evidence
+
+
+def test_hindi_place_names_and_office_hours_are_not_threats():
+    helpline = {"sign": "call_number", "evidence": "Helpline 94250 12345"}
+    for evidence in ("Ahmedabad, Gujarat (गुजरात)", "रात्रि सेवा केंद्र", "आज ही भुगतान करें", "Office hours 10 am to 5 pm"):
+        assert level(check_signs([{"sign": "threat_deadline", "evidence": evidence}, helpline])) == "caution", evidence
+    for evidence in ("आज रात 8 बजे कनेक्शन बंद", "disconnected tonight", "blocked within 24 hours", "2 घंटे में"):
+        assert level(check_signs([{"sign": "threat_deadline", "evidence": evidence}, helpline])) == "warning", evidence
+
+
+def test_real_scam_secrets_and_prizes_still_count():
+    assert check_signs([{"sign": "asks_secret", "evidence": "Share the OTP you receive"}])
+    assert check_signs([{"sign": "asks_secret", "evidence": "अपना ओटीपी बताएं"}])
+    assert check_signs([{"sign": "prize_refund", "evidence": "won ₹25,00,000 in the KBC Lucky Draw"}])
+    assert check_signs([{"sign": "prize_refund", "evidence": "policy bonus refund of Rs 18,420 is approved"}])

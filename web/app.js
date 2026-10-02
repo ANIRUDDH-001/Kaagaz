@@ -275,7 +275,15 @@ async function startRecording(mode) {
   const r = state.rec;
   if (!r) { stream.getTracks().forEach((x) => x.stop()); return; }
   const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((x) => window.MediaRecorder?.isTypeSupported(x)) || "";
-  const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  let recorder;
+  try { recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined); }
+  catch {   // no recording in this browser: close the microphone and say so
+    stream.getTracks().forEach((x) => x.stop());
+    state.rec = null;
+    renderSpeak();
+    toast(t("mic_unsupported"));
+    return;
+  }
   const chunks = [];
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   recorder.onstop = async () => {
@@ -316,7 +324,7 @@ function wireSpeak() {
   let startedHere = false;
   btn.addEventListener("pointerdown", (e) => {
     if (e.button > 0) return;
-    btn.setPointerCapture?.(e.pointerId);
+    try { btn.setPointerCapture?.(e.pointerId); } catch { /* pointer already gone */ }
     downAt = Date.now();
     if (state.rec) { startedHere = false; stopRecording(); return; }   // second tap sends
     startedHere = true;
@@ -325,7 +333,8 @@ function wireSpeak() {
   btn.addEventListener("pointerup", () => {
     if (!startedHere || !state.rec) return;
     startedHere = false;
-    if (Date.now() - downAt > 600) stopRecording();                  // held: let go to send
+    if (state.rec.starting) { state.rec.mode = "tap"; renderSpeak(); }   // let go during the permission prompt: keep listening
+    else if (Date.now() - downAt > 600) stopRecording();               // held: let go to send
     else { state.rec.mode = "tap"; renderSpeak(); }                    // tapped: keep listening
   });
   btn.addEventListener("pointercancel", () => { if (startedHere) stopRecording(); startedHere = false; });

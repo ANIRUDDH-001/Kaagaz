@@ -226,10 +226,10 @@ def readback(actions: list[dict], scam_level: str = "none") -> tuple[str, str]:
 async def read_paper(gemma, image: bytes, mime: str, today: date) -> dict:
     raw = await gemma.generate_json(paper_prompt(today_label(today)), PAPER_SCHEMA, image=image, mime=mime)
     action = validate_create(raw, today, source="photo")
-    scam = scam_summary(check_signs(raw.get("scam_signs")))
+    doc_type = raw.get("doc_type") if raw.get("doc_type") in ("bill_or_notice", "message", "other") else "other"
+    scam = scam_summary(check_signs(raw.get("scam_signs"), doc_type))
     action["scam"] = scam
     en, hi = readback([action], scam["level"])
-    doc_type = raw.get("doc_type") if raw.get("doc_type") in ("bill_or_notice", "message", "other") else "other"
     return {"kind": "paper", "doc_type": doc_type, "transcript": None, "summary_hi": raw.get("summary_hi"),
             "summary_en": raw.get("summary_en"), "scam": scam, "actions": [action], "readback_en": en,
             "readback_hi": hi}

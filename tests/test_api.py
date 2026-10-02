@@ -330,7 +330,7 @@ def test_input_reports_its_stage(ctx):
 
 
 def test_several_frontend_addresses_may_call_the_api(monkeypatch, tmp_path):
-    monkeypatch.setenv("FRONTEND_ORIGIN", "https://kaagaz.onrender.com, https://kaagaz-bx24.onrender.com")
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://kaagaz.onrender.com, https://kaagaz-bx24.onrender.com/")   # a pasted URL may end in /
     monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
     get_settings.cache_clear()
     app = create_app(store=mock_store(), temporal=FakeTemporal(), push=FakePush(), start_workers=False)
