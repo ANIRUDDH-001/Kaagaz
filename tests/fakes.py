@@ -1,7 +1,11 @@
 """Test doubles shared by all tests."""
+from mongomock.store import CollectionStore
 from mongomock_motor import AsyncMongoMockClient
 
 from app.db import Store
+
+# mongomock enforces TTL indexes against the wall clock, so fixed test dates would expire mid-test.
+CollectionStore._remove_expired_documents = lambda self: None
 
 
 def mock_store() -> Store:
