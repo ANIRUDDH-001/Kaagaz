@@ -58,8 +58,8 @@ Understand → confirm → remember → follow through → protect.
 - **MongoDB Atlas** holds papers, history and the inbox. Photos and recordings are never stored.
 - **ElevenLabs** transcribes Hinglish speech and speaks the readbacks (`eleven_multilingual_v2`, voice River;
   amounts are spoken as "18400 rupees" rather than "R S").
-- **Render** hosts the static app and the API. A GitHub Actions job runs the reminder worker four times an hour, so
-  reminders arrive even while the free API sleeps.
+- **Render** hosts the static app and the API. The API runs the reminder worker in-process; Temporal Cloud holds the
+  timers, so reminders that come due while the free API sleeps fire when it next wakes.
 
 ## Two modes, one codebase
 
@@ -95,7 +95,6 @@ Run the eval:
 `render.yaml` defines the API (free web service) and the app (free static site). Set the `sync: false` values in the
 Render dashboard: `FRONTEND_ORIGIN` must be the static site's address (comma-separated if it has more than one), and
 set `ELEVENLABS_TTS_MODEL=eleven_multilingual_v2` and `ELEVENLABS_VOICE_ID=SAz9YHcvj6GT2YYXdXww` for the voice.
-Put the same secrets in GitHub Actions for `reminder-worker.yml`.
 
 ## License
 
